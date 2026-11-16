@@ -64,7 +64,7 @@ function tryLoad(store, key, base, exts) {
   img.onerror = () => { i++; if (i < exts.length) img.src = base + '.' + exts[i]; };
   img.src = base + '.' + exts[0];
 }
-['title', 'logo', 'op1', 'op2', 'op3', 'map', 'boss1', 'boss2', 'boss3', 'boss4', 'boss5', 'boss_final', 'hero', 'ending1', 'ending2']
+['title', 'logo', 'op1', 'op2', 'op3', 'map', 'after1', 'after2', 'after3', 'after4', 'after5', 'boss1', 'boss2', 'boss3', 'boss4', 'boss5', 'boss_final', 'hero', 'ending1', 'ending2']
   .forEach(n => tryLoad(IMG, n, 'img/' + n, ['webp', 'jpg', 'png']));
 (function loadPhotos() {
   const keys = new Set();
@@ -1355,7 +1355,8 @@ function updateBoss(dt) {
 }
 function stageClear() {
   G.mode = 'clear'; G.clearT = 0; ui.focus = 0;
-  if (G.L.bossChip) collectRecord(G.L.bossChip);
+  if (G.L.bossChip) { G.bossRecFresh = !save.records[G.L.bossChip]; save.records[G.L.bossChip] = true; G.bossRec = recordById(G.L.bossChip); }
+  G.clearStep = G.def.change ? 0 : 1;
   const d = G.def, s = save;
   s.cleared[d.id] = true;
   if (d.card) s.cards[d.card.id] = true;
@@ -1396,7 +1397,7 @@ function updateStage(dt) {
   } else if (G.mode === 'record') { G.recT += dt; if (G.recT >= readSec()) menuNav(); }
   else if (G.mode === 'claim') { G.claimT += dt; if (G.claimT > 0.8) menuNav(); }
   else if (G.mode === 'down') { G.downT += dt; updateFx(dt); if (G.downT >= reviveSec()) menuNav(); }
-  else if (G.mode === 'clear') { G.clearT += dt; updateFx(dt); if (G.clearT > 1.2) menuNav(); }
+  else if (G.mode === 'clear') { G.clearT += dt; updateFx(dt); if (G.clearT > (G.clearStep === 0 ? 2 : 1.2)) menuNav(); }
   else if (G.mode === 'pause' || G.mode === 'gameover') menuNav();
   touchAct.dash = touchAct.skill = touchAct.swap = false;
 }
@@ -2503,7 +2504,46 @@ function drawPause() {
   button(W / 2 - 170, y, 340, 52, '스테이지 고르기', () => go(() => SelectScene()), { size: 21 }); y += 64;
   txt('나가면 이번 스테이지 진행은 저장되지 않아요 (기록 칩은 저장돼요)', W / 2, y + 14, 14, '#bdb6e6', 'center', { weight: 600 });
 }
+function drawChange() {
+  const t = G.clearT, d = G.def, ch = d.change;
+  modalStart(); dim(Math.min(0.82, t * 1.5));
+  const a = Math.min(1, t * 2);
+  ctx.save(); ctx.globalAlpha = a;
+  panel(40, 24, W - 80, H - 48, { fill: 'rgba(22,19,50,0.97)', stroke: C.mustard, r: 26, lw: 4 });
+  txt(ch.title, W / 2, 78, 44, C.mustard, 'center', { weight: 900, stroke: C.ink, sw: 7 });
+  txt('지구에서 사람들의 노력이 세상을 바꾼 것처럼, 화성도 바뀌었어요', W / 2, 124, 22, C.cream, 'center', { weight: 600 });
+  // 왼쪽: 지구 (실제 기록)
+  const lx = 80, ly = 156, lw = 540;
+  rr(lx, ly, 200, 40, 20); ctx.fillStyle = C.tealL; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt('지구 · 실제 역사', lx + 100, ly + 20, 20, C.ink, 'center', { weight: 900 });
+  (ch.earth || []).forEach((e, i) => {
+    const show = Math.min(1, Math.max(0, (t - 0.5 - i * 0.5) * 3));
+    if (show <= 0) return;
+    ctx.globalAlpha = a * show;
+    const y = ly + 66 + i * 104;
+    rr(lx, y, lw, 90, 16); ctx.fillStyle = 'rgba(44,200,182,0.12)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(159,245,234,0.6)'; ctx.stroke();
+    txt(e[0], lx + 22, y + 45, 34, C.tealL, 'left', { weight: 900 });
+    para(e[1], lx + 126, y + 32, lw - 146, 23, C.cream, 30, { weight: 600 });
+  });
+  ctx.globalAlpha = a;
+  // 오른쪽: 화성 (우리 이야기)
+  const rx = 660, rw = W - 80 - rx + 40 - 40;
+  rr(rx, ly, 220, 40, 20); ctx.fillStyle = C.orange; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt('화성 · 우리 정착촌', rx + 110, ly + 20, 20, C.ink, 'center', { weight: 900 });
+  const img = IMG[ch.img], iy = ly + 60, ih = 276;
+  const show2 = Math.min(1, Math.max(0, (t - 1.6) * 2));
+  ctx.globalAlpha = a * show2;
+  if (img) { ctx.save(); rr(rx, iy, rw, ih, 16); ctx.clip(); drawCover(img, rx, iy, rw, ih); ctx.restore(); rr(rx, iy, rw, ih, 16); ctx.lineWidth = 3; ctx.strokeStyle = C.cream; ctx.stroke(); }
+  else { rr(rx, iy, rw, ih, 16); ctx.fillStyle = '#2e2b52'; ctx.fill(); txt('모두의 길', rx + rw / 2, iy + ih / 2, 40, C.tealL, 'center', { weight: 900 }); }
+  para(ch.mars, rx, iy + ih + 30, rw, 22, C.cream, 30, { weight: 600 });
+  ctx.globalAlpha = a;
+  txt('▶', 640, ly + 210, 40, C.mustard, 'center', { weight: 900 });
+  ctx.restore();
+  if (G.bossRec && t > 1.2) txt((G.bossRecFresh ? '새 기록 획득: ' : '기록: ') + G.bossRec.year + ' ' + G.bossRec.title + ' (기록 보관소에서 볼 수 있어요)', W / 2, H - 112, 18, C.tealL, 'center', { weight: 600 });
+  if (t > 2) button(W / 2 - 140, H - 96, 280, 60, '다음 ▶', () => { G.clearStep = 1; G.clearT = 0; ui.focus = 0; }, { size: 26 });
+}
 function drawClear() {
+  if (G.clearStep === 0) { drawChange(); return; }
   const t = G.clearT, d = G.def;
   modalStart(); dim(Math.min(0.78, t));
   const a = Math.min(1, t * 2);
