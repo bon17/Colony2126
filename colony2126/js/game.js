@@ -929,7 +929,7 @@ function updateTips(dt) {
   if (G.tip) { G.tip.t += dt; if (G.tip.t > G.tip.dur) G.tip = null; }
   if (P.dead) return;
   if (G.gems.some(g => dist(g.x, g.y, P.x, P.y) < 300)) showTip('gem', '청록 조각은 경험치예요', '드론을 물리치면 떨어져요. 가까이 가면 저절로 모이고, 모으면 레벨 업!');
-  if (G.chips.some(c => !c.got && dist(c.x, c.y, P.x, P.y) < 280)) showTip('chip', '기록 칩이에요', '주우면 실제 지구 역사 기록이 떠요. 보스와 싸울 때 증거가 돼요');
+  if (G.chips.some(c => !c.got && dist(c.x, c.y, P.x, P.y) < 280)) showTip('chip', '기록 칩이에요', '주우면 실제 지구 역사 기록을 보여 줘요. 보스와 싸울 때 증거가 돼요');
   if (G.caps.some(c => !c.freed && dist(c.x, c.y, P.x, P.y) < 320)) showTip('cap', '갇힌 정착민이에요', '캡슐에 몸으로 닿으면 구출! 동료가 되어 함께 싸워요');
   if (G.zoneIdx === 1 && wallById('div') && wallById('div').active) showTip('div', '분리선!', '"화성 태생"과 "지구 출신"으로 나눈 벽이에요. 바로 앞 발생기를 부수면 꺼져요', 6);
 }
@@ -1168,9 +1168,17 @@ function collectRecord(id) {
   if (!rec) return;
   const fresh = !save.records[id];
   save.records[id] = true; writeSave();
-  G.toasts.push({ rec, t: 0, fresh });
   gainXp(fresh ? 15 : 5);
   Sound.play('pick');
+  // 플레이 중이면 게임을 잠깐 멈추고 기록 카드를 보여 준다. '모으기'를 누르면 다시 시작
+  if (G.mode === 'play') { G.recQueue = (G.recQueue || []).concat([{ rec, fresh }]); if (!G.recView) openRecord(); }
+  else G.toasts.push({ rec, t: 0, fresh });
+}
+function openRecord() { const q = G.recQueue.shift(); G.recView = q.rec; G.recFresh = q.fresh; G.recT = 0; G.mode = 'record'; ui.focus = 0; }
+function closeRecord() {
+  if (G.recT < 0.5) return;
+  if (G.recQueue && G.recQueue.length) { openRecord(); return; }
+  G.recView = null; G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 0.6);
 }
 
 /* ----- 보스 ----- */
@@ -1320,7 +1328,8 @@ function updateStage(dt) {
       ['Digit1', 'Digit2', 'Digit3'].forEach((k, i) => { if (hit(k) && G.choices[i]) chooseUpgrade(G.choices[i]); });
       if (G.mode === 'levelup') menuNav();
     }
-  } else if (G.mode === 'clear') { G.clearT += dt; updateFx(dt); if (G.clearT > 1.2) menuNav(); }
+  } else if (G.mode === 'record') { G.recT += dt; if (G.recT > 0.5) menuNav(); }
+  else if (G.mode === 'clear') { G.clearT += dt; updateFx(dt); if (G.clearT > 1.2) menuNav(); }
   else if (G.mode === 'pause' || G.mode === 'gameover') menuNav();
   touchAct.dash = touchAct.skill = touchAct.swap = false;
 }
@@ -1579,6 +1588,7 @@ function drawStage() {
   drawHUD();
   if (G.mode === 'brief') drawBrief();
   else if (G.mode === 'bossIntro') drawBossIntro();
+  else if (G.mode === 'record') drawRecordCard();
   else if (G.mode === 'levelup') drawLevelUp();
   else if (G.mode === 'pause') drawPause();
   else if (G.mode === 'clear') drawClear();
@@ -2281,6 +2291,32 @@ function drawBossIntro() {
     txt(l, 92, 444 + i * 36, 22, C.amberL, 'left', { stroke: C.ink, sw: 5 }));
   if (t > 0.7) txt('클릭 · Enter: 시작', 92, 568, 17, C.cream, 'left', { stroke: C.ink, sw: 4 });
   ctx.restore();
+}
+function drawRecordCard() {
+  modalStart(); dim(0.74);
+  const r = G.recView, x = 100, y = 56, w = W - 200, h = 600;
+  const pop = Math.min(1, G.recT * 6);
+  ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(0.9 + 0.1 * pop, 0.9 + 0.1 * pop); ctx.translate(-W / 2, -H / 2); ctx.globalAlpha = pop;
+  panel(x, y, w, h, { fill: 'rgba(22,19,50,0.98)', stroke: C.tealL, r: 24, lw: 4 });
+  rr(x + 30, y + 24, 170, 38, 19); ctx.fillStyle = C.tealL; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt(G.recFresh ? '지구 기록 획득!' : '지구 기록', x + 115, y + 43, 18, C.ink, 'center', { weight: 900 });
+  txt('실제 역사 기록이에요', x + 216, y + 44, 17, '#bdb6e6', 'left', { weight: 600 });
+  const px = x + 30, py = y + 84, pw = 450, ph = 340;
+  const img = PHOTO[r.photo];
+  if (img) { rr(px, py, pw, ph, 12); ctx.fillStyle = '#141228'; ctx.fill(); drawContain(img, px + 4, py + 4, pw - 8, ph - 8); rr(px, py, pw, ph, 12); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke(); }
+  else drawPhotoBox(r, px, py, pw, ph, { r: 12 });
+  const tx = x + 515, tw = w - 545;
+  txt(r.year + (r.place ? ' · ' + r.place : ''), tx, y + 102, 20, C.amberL, 'left', { weight: 600 });
+  const tl = para(r.title, tx, y + 146, tw, 34, C.cream, 42, { weight: 900 });
+  let yy = y + 146 + tl * 42 + 6;
+  const ll = wrap(r.line, tw - 36, 22, 600);
+  rr(tx - 4, yy - 4, tw + 4, ll.length * 32 + 26, 14); ctx.fillStyle = 'rgba(247,197,72,0.14)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(247,197,72,0.6)'; ctx.stroke();
+  ll.forEach((l, i) => txt(l, tx + 14, yy + 22 + i * 32, 22, C.amberL, 'left', { weight: 600 }));
+  yy += ll.length * 32 + 44;
+  para(r.detail, tx, yy, tw, 20, '#e6e0ff', 31, { weight: 600 });
+  ctx.restore();
+  if (G.recT > 0.5) button(W / 2 - 150, y + h - 92, 300, 66, '모으기', () => closeRecord(), { size: 30 });
+  txt('Enter · Space · 클릭', W / 2, y + h - 12, 15, '#bdb6e6', 'center', { weight: 600 });
 }
 function drawLevelUp() {
   modalStart(); dim(0.7);
