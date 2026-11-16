@@ -57,6 +57,11 @@ window.COLONY_DATA = {
       id: 1, ready: true,
       name: '분리 구역', movement: '민권 운동',
       goal: '레이저 벽 발생기를 부수고 앞으로 나아가세요',
+      /* 스테이지 시작 전 미션 카드 */
+      mission: {
+        why: '오더가 정착민을 태어난 곳에 따라 \'화성 태생\'과 \'지구 출신\'으로 갈라놓았어요.',
+        goal: '발생기를 부숴 레이저 벽을 끄고, 맨 위의 분리 모듈을 증거로 반박하세요!'
+      },
       signs: { left: '화성 태생', right: '지구 출신', merged: '모두의 길' },
       boss: {
         name: '분리 모듈', img: 'boss1',
