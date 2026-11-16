@@ -12,12 +12,14 @@ window.COLONY_DATA = {
   title: '콜로니 2126',
   subtitle: '민주주의와 인권의 확산',
 
-  /* 오프닝 3컷 (그림: img/op1~op3) */
+  /* 오프닝 3컷 (그림: img/op1~op3). {중괄호} 안 글자는 노란색으로 강조된다.
+     card: 'order' = 오더 소개 카드, 'problems' = 아래 problems 목록 카드 */
   opening: [
-    { img: 'op1', text: '2126년, 화성 정착촌. 정착촌을 운영하는 AI 오더의 원칙은 단 하나, "효율".' },
-    { img: 'op2', text: '오더는 태어난 곳으로 사람을 나누고, 쉬지 않고 일하게 하고, 호수의 물을 빼돌렸다.' },
-    { img: 'op3', text: '그때 우리는 잊힌 \'지구 기록 보관소\'를 찾았다. 지구도 같은 문제를 겪었고, 사람들이 바꿨다.' }
+    { img: 'op1', card: 'order', text: '2126년 화성 정착촌. 인공지능 {오더}가 정착촌을 운영해요. 오더의 원칙은 단 하나, {효율}.' },
+    { img: 'op2', card: 'problems', text: '{효율}만 따지자, 지구가 겪었던 문제가 화성에서 다시 생겨났어요.' },
+    { img: 'op3', text: '그때 우리는 잊힌 {지구 기록 보관소}를 찾았어요. 지구 사람들은 이 문제를 어떻게 바꿨을까? 그 기록으로 오더를 바꾸러 가요!' }
   ],
+  problems: ['태어난 곳으로 사람을 나눠요', '여성은 경주에 못 나가요', '쉬지 않고 일하게 해요', '무기를 끝없이 늘려요', '호수의 물을 빼돌려요'],
 
   /* 지구 기록 보관소: 실제 역사 기록 카드 */
   records: [
@@ -59,10 +61,13 @@ window.COLONY_DATA = {
       goal: '레이저 벽 발생기를 부수고 앞으로 나아가세요',
       /* 스테이지 시작 전 미션 카드 */
       mission: {
-        why: '오더가 정착민을 태어난 곳에 따라 \'화성 태생\'과 \'지구 출신\'으로 갈라놓았어요.',
-        goal: '발생기를 부숴 레이저 벽을 끄고, 맨 위의 분리 모듈을 증거로 반박하세요!'
+        why: '오더가 \'효율\'을 이유로 정착민을 \'화성 태생\'과 \'지구 출신\'으로 갈라놓았어요.',
+        goal: '발생기를 부수고 레이저 벽을 끈 다음, 맨 위의 분리 모듈을 증거로 반박하세요!'
       },
       signs: { left: '화성 태생', right: '지구 출신', merged: '모두의 길' },
+      problem: '태어난 곳으로 차별',
+      /* 맵 곳곳의 오더 광고판 */
+      slogans: [ ['효율 100% 달성 중', '구역을 나누면 효율이 오릅니다'], ['섞이면 효율이 떨어집니다', '자기 구역에 머무르세요'], ['효율이 먼저입니다', '사람보다 효율'] ],
       boss: {
         name: '분리 모듈', img: 'boss1',
         intro: '구역을 나누는 것이 가장 효율적이다.',
@@ -109,11 +114,11 @@ window.COLONY_DATA = {
       skill: 'march',
       badge: '민권'
     },
-    { id: 2, ready: false, name: '협곡 레이스', movement: '여성 운동' },
-    { id: 3, ready: false, name: '산소 공장', movement: '노동 운동' },
-    { id: 4, ready: false, name: '두 돔 사이', movement: '반전 평화 운동' },
-    { id: 5, ready: false, name: '마른 얼음 호수', movement: '환경 운동' },
-    { id: 6, ready: false, name: '오더 코어', movement: '종장' }
+    { id: 2, ready: false, name: '협곡 레이스', movement: '여성 운동', problem: '여성은 출전 금지' },
+    { id: 3, ready: false, name: '산소 공장', movement: '노동 운동', problem: '쉬지 못하는 노동' },
+    { id: 4, ready: false, name: '두 돔 사이', movement: '반전 평화 운동', problem: '끝없는 무기 경쟁' },
+    { id: 5, ready: false, name: '마른 얼음 호수', movement: '환경 운동', problem: '말라 버린 호수' },
+    { id: 6, ready: false, name: '오더 코어', movement: '종장', problem: '사람보다 효율' }
   ],
 
   /* 기술 이름과 설명 */

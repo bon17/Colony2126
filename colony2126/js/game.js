@@ -548,10 +548,13 @@ function OpeningScene() {
   const finish = () => { save.seenOpening = true; writeSave(); go(() => SelectScene()); };
   return {
     name: 'opening', i: 0, t: 0, done: false,
-    next() { if (this.done) return; this.i++; this.t = 0; if (this.i >= D.opening.length) { this.done = true; this.i = D.opening.length - 1; finish(); } },
+    full: false,
+    next() { if (this.done) return; this.i++; this.t = 0; this.full = false; if (this.i >= D.opening.length) { this.done = true; this.i = D.opening.length - 1; finish(); } },
     update(dt) {
       this.t += dt;
-      if (this.t > 7.5 || (this.t > 0.4 && (hit('Enter') || hit('Space') || hit('ArrowRight') || taps.length))) this.next();
+      if (this.t * 40 >= richText(D.opening[this.i].text).plain.length) this.full = true;
+      // 눌러야 넘어간다. 글자가 다 나오기 전에 누르면 먼저 글자를 다 보여 준다
+      if (this.t > 0.3 && (hit('Enter') || hit('Space') || hit('ArrowRight') || taps.length)) { if (this.full) this.next(); else this.full = true; }
       if (hit('Escape')) { this.done = true; finish(); }
     },
     draw() {
@@ -563,19 +566,71 @@ function OpeningScene() {
       const g = ctx.createLinearGradient(0, by - 90, 0, H); g.addColorStop(0, 'rgba(12,10,30,0)'); g.addColorStop(0.45, 'rgba(12,10,30,0.6)'); g.addColorStop(1, 'rgba(12,10,30,0.85)');
       ctx.fillStyle = g; ctx.fillRect(0, by - 90, W, H - by + 90);
       panel(bx, by, bw, bh, { fill: 'rgba(16,13,38,0.95)', stroke: 'rgba(255,244,220,0.9)', r: 22 });
-      rr(bx + 28, by - 18, 132, 36, 18); ctx.fillStyle = C.mustard; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
-      txt('이야기 ' + (this.i + 1) + '/' + D.opening.length, bx + 94, by, 18, C.ink, 'center', { weight: 600 });
-      const lines = wrap(cut.text, bw - 110, size, 600);
-      let left = Math.min(cut.text.length, Math.floor(this.t * 40));
-      lines.slice(0, 2).forEach((l, i) => {
-        const shown = l.slice(0, Math.max(0, left)); left -= l.length + 1;
-        txt(shown, bx + 55, by + 50 + i * lh, size, C.cream, 'left', { weight: 600 });
-      });
-      if (left > 0 || this.t > 2) txt('▼', bx + bw - 40, by + bh - 28 + Math.sin(this.t * 6) * 3, 20, C.mustard, 'center');
+      const rich = richText(cut.text);
+      const n = this.full ? rich.plain.length : Math.min(rich.plain.length, Math.floor(this.t * 40));
+      drawRich(rich, n, bx + 55, by + 50, bw - 110, size, lh, C.cream, C.mustard);
+      if (cut.card === 'order') drawOrderCard(this.t);
+      if (cut.card === 'problems') drawProblemsCard(this.t);
+      if (this.full) txt('▼', bx + bw - 40, by + bh - 28 + Math.sin(this.t * 6) * 3, 20, C.mustard, 'center');
       button(W - 190, 24, 166, 48, '건너뛰기 ▶▶', () => { this.done = true; finish(); }, { size: 18, focusable: false });
       txt('클릭 · Enter: 다음', W / 2, H - 20, 16, 'rgba(255,244,220,0.8)', 'center', { weight: 600 });
     }
   };
+}
+
+/* {강조} 표시가 있는 자막: 글자를 한 자씩 보여 주면서 강조 부분은 다른 색으로 */
+function richText(text) {
+  let plain = '', on = false; const hi = [];
+  for (const ch of text) { if (ch === '{') { on = true; continue; } if (ch === '}') { on = false; continue; } plain += ch; hi.push(on); }
+  return { plain, hi };
+}
+function drawRich(rich, n, x, y, maxW, size, lh, color, hiColor) {
+  const lines = wrap(rich.plain, maxW, size, 600);
+  let idx = 0;
+  lines.slice(0, 2).forEach((l, li) => {
+    let xx = x, k = 0;
+    setFont(size, 600);
+    while (k < l.length && idx + k < n) {
+      const h = rich.hi[idx + k]; let e = k;
+      while (e < l.length && idx + e < n && rich.hi[idx + e] === h) e++;
+      const seg = l.slice(k, e);
+      txt(seg, xx, y + li * lh, size, h ? hiColor : color, 'left', { weight: 600 });
+      setFont(size, 600); xx += ctx.measureText(seg).width; k = e;
+    }
+    idx += l.length + 1;
+  });
+}
+function drawOrderCard(t) {
+  const a = Math.min(1, Math.max(0, (t - 0.4) * 3));
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(0, (1 - a) * -20);
+  panel(40, 36, 470, 178, { fill: 'rgba(20,17,46,0.94)', stroke: C.amber, r: 20, lw: 3 });
+  ctx.fillStyle = 'rgba(255,177,46,0.25)'; circle(118, 125, 58 + Math.sin(t * 3) * 3); ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.fillStyle = '#f1e8d8'; circle(118, 125, 46); ctx.fill(); ctx.stroke();
+  drawEye(118, 125, 32, Math.PI * 0.2 + Math.sin(t) * 0.5, t);
+  txt('오더 ORDER', 190, 78, 34, C.amberL, 'left', { weight: 900 });
+  txt('정착촌을 운영하는 인공지능', 190, 118, 21, C.cream, 'left', { weight: 600 });
+  rr(190, 142, 290, 52, 14); ctx.fillStyle = C.amber; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt('원칙: 효율', 335, 169, 32, C.ink, 'center', { weight: 900 });
+  ctx.restore();
+}
+function drawProblemsCard(t) {
+  const a = Math.min(1, Math.max(0, (t - 0.3) * 3));
+  ctx.save(); ctx.globalAlpha = a;
+  const list = D.problems || [];
+  const h = 70 + list.length * 42;
+  panel(40, 36, 480, h, { fill: 'rgba(20,17,46,0.94)', stroke: C.red, r: 20, lw: 3 });
+  txt('효율만 따지자 생긴 일', 66, 72, 26, C.amberL, 'left', { weight: 900 });
+  list.forEach((p, i) => {
+    const show = Math.min(1, Math.max(0, (t - 0.8 - i * 0.45) * 4));
+    if (show <= 0) return;
+    ctx.globalAlpha = a * show;
+    const y = 116 + i * 42;
+    ctx.fillStyle = C.red; circle(80, y, 13); ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke();
+    txt('!', 80, y + 1, 18, C.cream, 'center', { weight: 900 });
+    txt(p, 104, y, 22, C.cream, 'left', { weight: 600 });
+  });
+  ctx.globalAlpha = a;
+  ctx.restore();
 }
 
 /* ===== 스테이지 고르기 ===== */
@@ -586,11 +641,12 @@ function SelectScene() {
     draw() {
       if (IMG.map) drawCover(IMG.map, 0, 0, W, H); else drawMarsScene(this.t);
       dim(0.35);
-      panel(24, 20, W - 48, 74, { fill: 'rgba(27,24,56,0.88)' });
-      txt('스테이지 고르기', 50, 57, 32, C.cream, 'left', { weight: 900 });
+      panel(24, 20, W - 48, 96, { fill: 'rgba(27,24,56,0.9)' });
+      txt('스테이지 고르기', 50, 54, 32, C.cream, 'left', { weight: 900 });
+      txt('효율만 따지는 오더 때문에 생긴 문제를, 지구 기록으로 하나씩 바꿔요', 50, 92, 19, C.tealL, 'left', { weight: 600 });
       const cardsN = Object.keys(save.cards).length;
-      txt('Lv ' + save.level + '   ·   제도 카드 ' + cardsN + '/5   ·   ' + (save.difficulty === 'easy' ? '쉬움' : '보통'), W - 50, 57, 21, C.amberL, 'right');
-      const n = D.stages.length, cw = 192, gap = 12, x0 = (W - (n * cw + (n - 1) * gap)) / 2, y0 = 360, ch = 250;
+      txt('Lv ' + save.level + '   ·   제도 카드 ' + cardsN + '/5   ·   ' + (save.difficulty === 'easy' ? '쉬움' : '보통'), W - 50, 54, 21, C.amberL, 'right');
+      const n = D.stages.length, cw = 192, gap = 12, x0 = (W - (n * cw + (n - 1) * gap)) / 2, y0 = 330, ch = 286;
       D.stages.forEach((s, i) => {
         const x = x0 + i * (cw + gap);
         const cleared = !!save.cleared[s.id];
@@ -605,12 +661,18 @@ function SelectScene() {
         txt(s.id === 6 ? '★' : String(s.id), x + cw / 2, y0 + lift + 52, 30, C.ink, 'center', { weight: 900 });
         txt(s.name, x + cw / 2, y0 + lift + 112, 25, playable ? C.cream : '#9a93c8', 'center', { weight: 900 });
         txt(s.movement, x + cw / 2, y0 + lift + 146, 18, playable ? C.tealL : '#7f78ad', 'center', { weight: 700 });
+        if (s.problem) {
+          rr(x + 14, y0 + lift + 166, cw - 28, 52, 12); ctx.fillStyle = playable ? 'rgba(224,87,62,0.25)' : 'rgba(224,87,62,0.12)'; ctx.fill();
+          txt('문제', x + cw / 2, y0 + lift + 180, 13, playable ? '#ffb3a3' : '#9a7f9a', 'center', { weight: 600 });
+          txt(s.problem, x + cw / 2, y0 + lift + 202, 17, playable ? C.cream : '#9a93c8', 'center', { weight: 600 });
+        }
+        const sy = y0 + lift + 248;
         if (cleared) {
-          rr(x + 30, y0 + lift + 180, cw - 60, 40, 20); ctx.fillStyle = C.good; ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.stroke();
-          txt('클리어 ✓', x + cw / 2, y0 + lift + 201, 19, C.ink, 'center');
-        } else if (!s.ready) txt('준비 중', x + cw / 2, y0 + lift + 200, 19, '#8e87bd', 'center', { weight: 700 });
-        else if (finalLocked) txt('다섯 곳을 깨면 열려요', x + cw / 2, y0 + lift + 200, 15, '#8e87bd', 'center', { weight: 700 });
-        else txt('출발 ▶', x + cw / 2, y0 + lift + 200, 21, C.mustard, 'center');
+          rr(x + 30, sy - 20, cw - 60, 40, 20); ctx.fillStyle = C.good; ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.stroke();
+          txt('바꿨어요 ✓', x + cw / 2, sy + 1, 19, C.ink, 'center');
+        } else if (!s.ready) txt('준비 중', x + cw / 2, sy, 19, '#8e87bd', 'center', { weight: 700 });
+        else if (finalLocked) txt('다섯 곳을 깨면 열려요', x + cw / 2, sy, 15, '#8e87bd', 'center', { weight: 700 });
+        else txt('출발 ▶', x + cw / 2, sy, 21, C.mustard, 'center');
       });
       if (save.badges.length) txt('운동 배지: ' + save.badges.join(' · '), 40, 650, 19, C.cream, 'left', { stroke: C.ink, sw: 5 });
       button(W - 470, H - 82, 250, 56, '지구 기록 보관소', () => openArchive(), { size: 20, fill: C.tealL });
@@ -805,6 +867,8 @@ function layoutStage1() {
              { x: 540, y: 3560, w: 520, h: 240 }, { x: 360, y: 2010, w: 140, h: 140 }, { x: 1100, y: 2010, w: 140, h: 140 }, { x: 730, y: 1230, w: 140, h: 140 } ];
   // 유리 거주 돔(단단함)
   L.domes = [ { x: 250, y: 3560, r: 72 }, { x: 1380, y: 3420, r: 64 }, { x: 190, y: 2210, r: 58 }, { x: 1420, y: 1250, r: 66 }, { x: 200, y: 1330, r: 58 } ];
+  const sl = (stageById(1).slogans || []);
+  L.boards = [ { x: 370, y: 3778, text: sl[0] }, { x: 1210, y: 2700, text: sl[1] }, { x: 430, y: 1710, text: sl[2] } ].filter(b => b.text);
   L.props = [ { kind: 'solar', x: 330, y: 3260 }, { kind: 'solar', x: 1230, y: 3130 }, { kind: 'solar', x: 1360, y: 2290 }, { kind: 'solar', x: 470, y: 1470 }, { kind: 'solar', x: 1130, y: 1470 },
               { kind: 'antenna', x: 1210, y: 3660 }, { kind: 'antenna', x: 420, y: 2380 }, { kind: 'antenna', x: 1250, y: 1660 },
               { kind: 'tank', x: 1080, y: 3700 }, { kind: 'tank', x: 1120, y: 3730 }, { kind: 'tank', x: 520, y: 2700 }, { kind: 'tank', x: 1000, y: 1150 } ];
@@ -850,14 +914,14 @@ function updateCoach(dt) {
   c.moved += dist(P.x, P.y, c.lx, c.ly); c.lx = P.x; c.ly = P.y;
   c.st += dt; if (c.flash > 0) c.flash -= dt * 2;
   const step = c.steps[c.step];
-  if (step && (step.done(c) || (step.skipAfter && c.st > step.skipAfter))) { c.step++; c.st = 0; c.flash = 1; Sound.play('ui'); }
+  if (step && (step.done(c) || (step.skipAfter && c.st > step.skipAfter))) { c.step++; c.st = 0; c.flash = 1; c.showAt = G.t; Sound.play('ui'); }
   if (c.step >= c.steps.length) G.coach = null;
 }
 function showTip(key, title, sub, dur) {
   if (G.tipsSeen[key]) return;
   if (G.coach && G.coach.step < 2 && key !== 'wall') return;
   G.tipsSeen[key] = true;
-  G.tip = { title, sub, t: 0, dur: dur || 5.5 };
+  G.tip = { title, sub, t: 0, dur: dur || 4.5 };
 }
 function updateTips(dt) {
   const P = G.P;
@@ -1247,7 +1311,7 @@ function updateStage(dt) {
   } else if (G.mode === 'play') updatePlay(dt);
   else if (G.mode === 'bossIntro') {
     G.introT += dt; updateFx(dt);
-    if (G.introT > 7 || (G.introT > 0.7 && (hit('Enter') || hit('Space') || taps.length))) { G.mode = 'play'; G.tip = null; }
+    if (G.introT > 0.7 && (hit('Enter') || hit('Space') || taps.length)) { G.mode = 'play'; G.tip = null; }
   } else if (G.mode === 'levelup') {
     G.lvT += dt;
     if (G.lvT > 0.45) {
@@ -1261,6 +1325,7 @@ function updateStage(dt) {
 function startPlay() {
   if (G.mode !== 'brief') return;
   G.mode = 'play';
+  if (G.coach) G.coach.showAt = G.t;
   banner('STAGE ' + G.def.id + ' · ' + G.def.name, '', C.mustard, 2.2);
 }
 function updatePlay(dt) {
@@ -1287,12 +1352,13 @@ function updatePlay(dt) {
       burst(P.x, P.y, C.tealL, 8, 160, 4);
     }
     if (hit('KeyE') || touchAct.skill) useSkill();
+    if (hit('Tab')) { G.missionPinned = !G.missionPinned; if (!G.missionPinned) G.missionAt = -99; }
     if ((hit('KeyQ') || touchAct.swap) && G.skills.length > 1) { G.skillIdx = (G.skillIdx + 1) % G.skills.length; addText(P.x, P.y - 50, D.skills[G.skills[G.skillIdx]].name, C.tealL, 18); }
     let spd = st.speed * (P.marchT > 0 ? 1.25 : 1);
     let vx = mx * spd, vy = my * spd;
     if (P.dashT > 0) { P.dashT -= dt; vx = P.dashDir.x * spd * 3.2; vy = P.dashDir.y * spd * 3.2; if (Math.random() < 0.6) G.parts.push({ x: P.x, y: P.y, vx: 0, vy: 0, life: 0.25, t: 0, color: 'rgba(159,245,234,0.8)', size: 9 }); }
     vx += P.kx; vy += P.ky; P.kx *= Math.pow(0.0008, dt); P.ky *= Math.pow(0.0008, dt);
-    if (moveBody(P, vx * dt, vy * dt, true)) { hurtPlayer(8, P.x, P.y + (P.y > G.cam.y + H / 2 ? 30 : -30)); showTip('wall', '레이저 벽은 닿으면 아파요', '발생기를 부숴야 꺼져요. 노란 화살표를 따라가요'); }
+    if (moveBody(P, vx * dt, vy * dt, true)) { hurtPlayer(8, P.x, P.y + (P.y > G.cam.y + H / 2 ? 30 : -30)); showTip('wall', '레이저 벽은 닿으면 아파요', '발생기를 모두 부수면 꺼져요. 노란 화살표를 따라가요'); }
   }
   if (P.dashCd > 0) P.dashCd -= dt;
   if (P.inv > 0) P.inv -= dt;
@@ -1483,7 +1549,7 @@ function drawStage() {
   }
   for (const gm of G.gems) if (vis(gm.x, gm.y, 20)) { ctx.save(); ctx.translate(gm.x, gm.y); ctx.rotate(G.t * 3); ctx.fillStyle = C.tealL; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(5, 0); ctx.lineTo(0, 6); ctx.lineTo(-5, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
   for (const c of G.caps) if (vis(c.x, c.y, 80)) drawCapsule(c);
-  for (const g of G.gens) if (vis(g.x, g.y, 80)) drawGen(g);
+  for (const g of G.gens) if (vis(g.x, g.y, 80)) { if (isTargetGen(g)) drawTargetRing(g); drawGen(g); }
   if (G.boss && !G.boss.dead) drawBoss(G.boss);
   const actors = [];
   for (const e of G.enemies) if (vis(e.x, e.y, 60)) actors.push({ y: e.y, f: () => drawEnemy(e, G.t) });
@@ -1507,6 +1573,7 @@ function drawStage() {
   ctx.restore();
   ctx.restore();
   drawDust();
+  drawOffscreenTargets();
   drawHUD();
   if (G.mode === 'brief') drawBrief();
   else if (G.mode === 'bossIntro') drawBossIntro();
@@ -1637,6 +1704,21 @@ function drawDome(d) {
   ctx.fillStyle = 'rgba(255,255,255,0.55)'; ellipse(-d.r * 0.38, -d.r * 0.45, d.r * 0.22, d.r * 0.1); ctx.fill();
   ctx.restore();
 }
+function drawBoard(b) {
+  const c = G.cam; if (b.x < c.x - 200 || b.x > c.x + W + 200 || b.y < c.y - 160 || b.y > c.y + H + 80) return;
+  ctx.save(); ctx.translate(b.x, b.y);
+  ctx.fillStyle = 'rgba(60,20,20,0.35)'; ellipse(0, 6, 60, 10); ctx.fill();
+  ctx.fillStyle = '#3a3566'; ctx.fillRect(-4, -40, 8, 44); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.strokeRect(-4, -40, 8, 44);
+  setFont(17, 600); const w = Math.max(ctx.measureText(b.text[0]).width, ctx.measureText(b.text[1]).width) + 96;
+  ctx.fillStyle = 'rgba(255,177,46,' + (0.16 + 0.06 * Math.sin(G.t * 3)) + ')'; rr(-w / 2 - 8, -132, w + 16, 100, 16); ctx.fill();
+  rr(-w / 2, -124, w, 84, 12); ctx.fillStyle = 'rgba(25,18,40,0.94)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.amber; ctx.stroke();
+  ctx.lineWidth = 2; ctx.strokeStyle = C.ink; ctx.fillStyle = '#f1e8d8'; circle(-w / 2 + 38, -82, 22); ctx.fill(); ctx.stroke();
+  drawEye(-w / 2 + 38, -82, 15, Math.atan2(G.P.y - b.y, G.P.x - b.x), G.t);
+  txt('오더 방송', -w / 2 + 70, -106, 13, C.amber, 'left', { weight: 600 });
+  txt(b.text[0], -w / 2 + 70, -84, 19, C.amberL, 'left', { weight: 900 });
+  txt(b.text[1], -w / 2 + 70, -60, 16, C.cream, 'left', { weight: 600 });
+  ctx.restore();
+}
 function drawSpaceEdge(s) {
   const c = G.cam; if (s.x > c.x + W || s.x + s.w < c.x || s.y > c.y + H || s.y + s.h < c.y) return;
   const y0 = Math.max(s.y, c.y - 10), y1 = Math.min(s.y + s.h, c.y + H + 10);
@@ -1692,6 +1774,7 @@ function drawWorldDecor() {
   ctx.restore();
   for (const d of L.domes || []) drawDome(d);
   for (const p of L.props || []) drawProp(p);
+  for (const b of L.boards || []) drawBoard(b);
   for (const s of L.solids) {
     if (s.crate) drawCrate(s);
     else if (s.space) drawSpaceEdge(s);
@@ -1751,6 +1834,39 @@ function drawWall(w) {
   if (hor) for (let x = w.x - 120 + off; x < w.x + w.w; x += 120) ctx.fillRect(x, w.y + w.h / 2 - 1, 30, 2);
   else for (let y = w.y - 120 + off; y < w.y + w.h; y += 120) ctx.fillRect(w.x + w.w / 2 - 1, y, 2, 30);
   ctx.restore();
+}
+function isTargetGen(g) {
+  if (!g.alive || G.boss) return false;
+  const z = G.zones[G.zoneIdx];
+  return !!z && wallById(z.exit).gens.includes(g.id);
+}
+function drawTargetRing(g) {
+  const p = 1 + Math.sin(G.t * 5) * 0.08;
+  ctx.save(); ctx.translate(g.x, g.y + 10);
+  ctx.strokeStyle = 'rgba(247,197,72,0.9)'; ctx.lineWidth = 4; ctx.setLineDash([14, 10]); ctx.lineDashOffset = -G.t * 30;
+  ctx.beginPath(); ctx.ellipse(0, 0, 62 * p, 26 * p, 0, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+  const by = -150 + Math.sin(G.t * 6) * 7;
+  rr(-38, by - 30, 76, 30, 15); ctx.fillStyle = C.mustard; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt('목표', 0, by - 14, 18, C.ink, 'center', { weight: 900 });
+  ctx.fillStyle = C.mustard; ctx.beginPath(); ctx.moveTo(-12, by + 2); ctx.lineTo(12, by + 2); ctx.lineTo(0, by + 18); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+function drawOffscreenTargets() {
+  if (G.mode !== 'play' || G.boss) return;
+  const cam = G.cam, m = 46;
+  for (const g of G.gens) {
+    if (!isTargetGen(g)) continue;
+    const sx = g.x - cam.x, sy = g.y - 30 - cam.y;
+    if (sx > 0 && sx < W && sy > 0 && sy < H) continue;
+    const cx = W / 2, cy = H / 2, a = Math.atan2(sy - cy, sx - cx);
+    const k = Math.min((W / 2 - m) / Math.abs(Math.cos(a) || 1e-6), (H / 2 - m - 40) / Math.abs(Math.sin(a) || 1e-6));
+    const x = cx + Math.cos(a) * k, y = cy + Math.sin(a) * k;
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(20,17,46,0.85)'; circle(0, 0, 26); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.mustard; ctx.stroke();
+    txt('목표', 0, 1, 13, C.mustard, 'center', { weight: 900 });
+    ctx.rotate(a); ctx.fillStyle = C.mustard; ctx.beginPath(); ctx.moveTo(40, 0); ctx.lineTo(28, -10); ctx.lineTo(28, 10); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
 }
 function drawGenLinks(g) {
   if (!g.alive) return;
@@ -1934,6 +2050,7 @@ function drawHUD() {
   }
   let obj = '';
   if (G.boss && !G.boss.dead) obj = '';
+  else if (G.coach && G.coach.steps[G.coach.step]) obj = '지금 할 일 ▶ ' + G.coach.steps[G.coach.step].title;
   else if (G.zoneIdx >= 0) {
     const w = wallById(G.zones[G.zoneIdx].exit);
     const left = w.gens.filter(id => G.gens.find(g => g.id === id).alive).length;
@@ -2023,7 +2140,9 @@ function drawBanner(b) {
   }
 }
 function toastDur(tt) { return tt.zone ? 2.4 : (G.toasts.length > 1 ? 4.5 : 6.5); }
-function coachVisible() { return G.mode === 'play' && (G.tip || G.coach); }
+const COACH_SHOW = 5;
+function coachBarOn() { return !!G.coach && G.t - (G.coach.showAt || 0) < COACH_SHOW; }
+function coachVisible() { return G.mode === 'play' && (G.tip || coachBarOn()); }
 function drawToast(tt) {
   const d = toastDur(tt), inT = Math.min(1, tt.t * 5), outT = Math.min(1, (d - tt.t) * 4);
   const a = Math.max(0, Math.min(inT, outT));
@@ -2049,15 +2168,18 @@ function drawToast(tt) {
 function drawCoachBar() {
   let title, sub, badge;
   if (G.tip) { title = G.tip.title; sub = G.tip.sub; badge = '!'; }
-  else if (G.coach) { const st = G.coach.steps[G.coach.step]; if (!st) return; title = st.title; sub = st.sub(); badge = (G.coach.step + 1) + '/' + G.coach.steps.length; }
+  else if (coachBarOn()) { const st = G.coach.steps[G.coach.step]; if (!st) return; title = st.title; sub = st.sub(); badge = '▶'; }
   else return;
-  const w = 860, h = 92, x = W / 2 - w / 2 - (touchUI() ? 120 : 0), y = H - h - 14;
+  const w = 800, h = 84, x = W / 2 - w / 2 - (touchUI() ? 120 : 0), y = H - h - 14;
+  const fade = G.tip ? Math.min(1, (G.tip.dur - G.tip.t) * 3) : Math.min(1, (COACH_SHOW - (G.t - G.coach.showAt)) * 3);
+  ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, fade));
   const fl = G.coach && !G.tip ? Math.max(0, G.coach.flash) : 0;
   panel(x, y, w, h, { fill: 'rgba(20,17,46,0.96)', stroke: fl > 0 ? C.mustard : C.tealL, r: 20, lw: 3 + fl * 3 });
   ctx.fillStyle = badge === '!' ? C.tealL : C.mustard; circle(x + 50, y + h / 2, 30); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
-  txt(badge, x + 50, y + h / 2 + 1, badge === '!' ? 30 : 19, C.ink, 'center', { weight: 900 });
-  txt(title, x + 98, y + 31, 27, badge === '!' ? C.tealL : C.mustard, 'left', { weight: 900 });
-  txt(sub, x + 98, y + 66, 19, C.cream, 'left', { weight: 600 });
+  txt(badge, x + 50, y + h / 2 + 1, badge === '!' ? 30 : 24, C.ink, 'center', { weight: 900 });
+  txt(title, x + 98, y + 28, 25, badge === '!' ? C.tealL : C.mustard, 'left', { weight: 900 });
+  txt(sub, x + 98, y + 60, 18, C.cream, 'left', { weight: 600 });
+  ctx.restore();
 }
 function drawMissionList() {
   const mainWalls = ['wC', 'wB', 'wA'].map(wallById).filter(Boolean);
@@ -2071,6 +2193,16 @@ function drawMissionList() {
     { t: '기록 칩 모으기', v: got + '/' + recs.length, done: got === recs.length, opt: true }
   ];
   const cur = items.findIndex(i => !i.done && !i.opt);
+  const sig = items.map(i => i.v).join('|');
+  if (G.missionSig !== sig) { G.missionSig = sig; G.missionAt = G.t; }
+  const open = G.missionPinned || G.t - (G.missionAt || 0) < 5;
+  if (!open) {
+    const st = button(W - 154, 90, 140, 34, '', () => { G.missionPinned = true; }, { focusable: false, draw: false });
+    panel(W - 154, 90, 140, 34, { fill: st.hover ? 'rgba(60,52,120,0.9)' : 'rgba(27,24,56,0.75)', r: 17, lw: 2 });
+    txt(touchUI() ? '미션 보기 ▾' : '미션 (Tab) ▾', W - 84, 107, 15, C.mustard, 'center', { weight: 600 });
+    return;
+  }
+  if (G.missionPinned) button(W - 304, 90, 290, 30 + items.length * 30 + 10, '', () => { G.missionPinned = false; G.missionAt = -99; }, { focusable: false, draw: false });
   const x = W - 304, y = 90, w = 290, h = 30 + items.length * 30 + 10;
   panel(x, y, w, h, { fill: 'rgba(27,24,56,0.82)', r: 14, lw: 2 });
   txt('미션', x + 16, y + 20, 17, C.mustard, 'left', { weight: 900 });
@@ -2140,7 +2272,7 @@ function drawBossIntro() {
   else { ctx.save(); ctx.translate(950, 380); ctx.scale(1.6, 1.6); drawBoss1Code({ t: G.t, flash: 0, pat: null, y: 0, x: 0 }, { x: 0, y: 200 }); ctx.restore(); }
   ctx.restore();
   ctx.save(); ctx.globalAlpha = Math.min(1, Math.max(0, (t - 0.25) * 3));
-  txt('BOSS', 90, 250, 28, C.amberL, 'left', { stroke: C.ink, sw: 6 });
+  txt('BOSS · 오더의 하위 모듈', 90, 250, 26, C.amberL, 'left', { weight: 900, stroke: C.ink, sw: 6 });
   txt(b.def.name, 90, 310, 64, C.cream, 'left', { weight: 900, stroke: C.ink, sw: 10 });
   para('「' + b.def.intro + '」', 92, 390, 560, 28, C.cream, 40, { stroke: C.ink, sw: 6 });
   ['① 보스가 주장을 외치면 방어막이 생겨요', '② 주장이 틀렸다는 증거 구슬에 몸으로 닿아요', '③ 방어막이 깨지면 공격! (틀린 구슬은 반격)'].forEach((l, i) =>
