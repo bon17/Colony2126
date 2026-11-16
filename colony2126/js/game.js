@@ -1020,7 +1020,7 @@ function collide(o, isPlayer) {
   for (const g of G.gens) if (g.alive) pushOutCircle(o, g.x, g.y, g.r);
   if (isPlayer) {
     for (const c of G.caps) if (!c.freed) pushOutCircle(o, c.x, c.y, 24);
-    if (G.boss && !G.boss.dead) pushOutCircle(o, G.boss.x, G.boss.y, 70);
+    if (G.boss && !G.boss.dead) pushOutCircle(o, G.boss.x, G.boss.y, 86);
   }
   o.x = clamp(o.x, o.r, G.L.w - o.r); o.y = clamp(o.y, o.r, G.L.h - o.r);
   if (G.arenaLock) { const a = G.L.arena; o.x = clamp(o.x, a.x + o.r, a.x + a.w - o.r); o.y = clamp(o.y, a.y + 40, a.y + a.h - o.r - 6); }
@@ -1125,15 +1125,32 @@ function hurtPlayer(dmg, sx, sy, force) {
 }
 function playerDown() {
   const P = G.P;
-  P.hp = 0; P.dead = true; P.deadT = 1.4; G.stats.downs++;
+  P.hp = 0; P.dead = true; G.stats.downs++;
   G.eB = []; burst(P.x, P.y, C.tealL, 24, 260); burst(P.x, P.y, C.orange, 12, 200);
   if (save.difficulty !== 'easy') G.lives--;
+  // 쓰러지면 게임을 멈추고, 정해진 시간이 지나야 「다시 시작」을 누를 수 있다
+  if (save.difficulty !== 'easy' && G.lives <= 0) { G.mode = 'gameover'; ui.focus = 0; return; }
+  G.mode = 'down'; G.downT = 0; ui.focus = 0;
+}
+const reviveSec = () => (typeof D.reviveSeconds === 'number' ? D.reviveSeconds : 10);
+function drawDown() {
+  modalStart(); dim(0.66);
+  const t = G.downT, left = reviveSec() - t, easy = save.difficulty === 'easy';
+  panel(W / 2 - 330, 150, 660, 420, { fill: 'rgba(30,16,30,0.96)', stroke: C.red, r: 24, lw: 4 });
+  txt('쓰러졌어요!', W / 2, 220, 52, C.cream, 'center', { weight: 900, stroke: C.ink, sw: 8 });
+  txt(easy ? '조금 쉬었다가 그 자리에서 다시 일어나요' : '남은 목숨 ' + G.lives + '개 · 구역 입구에서 다시 시작해요', W / 2, 282, 22, '#ffd0c8', 'center', { weight: 600 });
+  const cx = W / 2, cy = 380, r = 58;
+  ctx.fillStyle = 'rgba(10,8,30,0.7)'; circle(cx, cy, r); ctx.fill();
+  ctx.strokeStyle = C.mustard; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(cx, cy, r - 6, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, t / reviveSec())); ctx.stroke();
+  txt(left > 0 ? String(Math.ceil(left)) : '✓', cx, cy + 2, 46, C.cream, 'center', { weight: 900 });
+  if (left > 0) txt('잠시 기다려요', W / 2, 484, 20, '#cfc8f2', 'center', { weight: 600 });
+  else button(W / 2 - 150, 462, 300, 64, '다시 시작', () => respawn(), { size: 30 });
 }
 function respawn() {
   const P = G.P;
   if (save.difficulty !== 'easy') { if (G.lives <= 0) { G.mode = 'gameover'; ui.focus = 0; return; } P.x = G.checkpoint.x; P.y = G.checkpoint.y; }
   P.dead = false; P.hp = G.st.maxHp; P.inv = 2.2; P.kx = P.ky = 0;
-  G.eB = [];
+  G.eB = []; G.mode = 'play';
   banner(save.difficulty === 'easy' ? '다시 일어났어요!' : '다시 도전!', save.difficulty === 'easy' ? '' : '남은 목숨 ' + G.lives, C.tealL, 1.6);
 }
 function findTarget(x, y, range) {
@@ -1206,7 +1223,7 @@ function startBoss() {
   G.enemies.forEach(e => { if (!e.dead) { e.dead = true; burst(e.x, e.y, C.amber, 6, 150); } });
   G.eB = [];
   const hp = 4000 * G.hpMul;
-  G.boss = { def: G.def.boss, x: 800, y: 255, hp, maxHp: hp, round: 0, shield: true, stun: 0, t: 0, pat: null, patT: 2.2,
+  G.boss = { def: G.def.boss, x: 800, y: 290, hp, maxHp: hp, round: 0, shield: true, stun: 0, t: 0, pat: null, patT: 2.2,
              orbs: [], orbT: 1.6, orbsUp: false, dying: 0, dead: false, flash: 0, lasers: [], breakT: 0 };
   G.mode = 'bossIntro'; G.introT = 0;
 }
@@ -1227,13 +1244,44 @@ function spawnOrbs(b) {
   const rd = b.def.rounds[b.round], a = G.L.arena, placed = [];
   shuffle(rd.options).forEach(opt => {
     let x, y, tries = 0;
-    do { x = rand(a.x + 140, a.x + a.w - 140); y = rand(430, 650); tries++; }
+    do { x = rand(a.x + 140, a.x + a.w - 140); y = rand(470, 640); tries++; }
     while (tries < 40 && (placed.some(p => dist(p.x, p.y, x, y) < 260) || dist(x, y, G.P.x, G.P.y) < 190));
     placed.push({ x, y });
     const ang = rand(0, TAU);
-    b.orbs.push({ opt, x, y, vx: Math.cos(ang) * 38, vy: Math.sin(ang) * 38, r: 40, t: rand(0, 5), born: 0 });
+    b.orbs.push({ opt, x, y, vx: Math.cos(ang) * 38, vy: Math.sin(ang) * 38, r: 46, t: rand(0, 5), born: 0 });
   });
   b.orbsUp = true;
+  // 라운드마다 주장을 크게 보여 주고 멈춘다. 「반박하러 가기」를 누르면 다시 시작
+  G.mode = 'claim'; G.claimT = 0; G.eB = []; ui.focus = 0;
+}
+function startRebut() { if (G.mode !== 'claim' || G.claimT < 0.8) return; G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 1); }
+function drawClaimCard() {
+  modalStart(); dim(0.72);
+  const b = G.boss, rd = b.def.rounds[b.round], t = G.claimT;
+  const pop = Math.min(1, t * 5);
+  ctx.save(); ctx.globalAlpha = pop;
+  panel(90, 40, W - 180, 640, { fill: 'rgba(30,16,30,0.97)', stroke: C.red, r: 26, lw: 4 });
+  rr(130, 70, 260, 46, 23); ctx.fillStyle = C.red; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt(b.def.name + '의 주장', 260, 94, 24, C.cream, 'center', { weight: 900 });
+  if (IMG[b.def.img]) drawContain(IMG[b.def.img], W - 300, 60, 180, 170);
+  const ql = wrap('「' + rd.claim + '」', W - 520, 42, 900);
+  ql.forEach((l, i) => txt(l, 130, 170 + i * 54, 42, C.amberL, 'left', { weight: 900, stroke: C.ink, sw: 6 }));
+  const y2 = 170 + ql.length * 54 + 26;
+  txt('이 주장이 틀렸다는 증거를 찾아 몸으로 닿으세요!', W / 2, y2, 27, C.cream, 'center', { weight: 600 });
+  txt('맞는 증거: 방어막이 깨져요   ·   틀린 증거: 반격을 받아요', W / 2, y2 + 40, 20, '#cfc8f2', 'center', { weight: 600 });
+  const opts = b.orbs.map(o => o.opt);
+  opts.forEach((o, i) => {
+    const cx = W / 2 + (i - (opts.length - 1) / 2) * 320, cy = y2 + 150;
+    ctx.save(); circle(cx, cy, 58); ctx.clip();
+    const img = photoOf(o);
+    if (img) drawCover(img, cx - 58, cy - 58, 116, 116);
+    else { ctx.fillStyle = '#3b3570'; ctx.fillRect(cx - 58, cy - 58, 116, 116); ctx.fillStyle = C.cream; ctx.strokeStyle = C.ink; ctx.lineWidth = 2; rr(cx - 17, cy - 22, 34, 42, 5); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#b8ad98'; ctx.fillRect(cx - 11, cy - 11, 22, 3); ctx.fillRect(cx - 11, cy - 3, 22, 3); ctx.fillRect(cx - 11, cy + 5, 15, 3); }
+    ctx.restore();
+    ctx.lineWidth = 5; ctx.strokeStyle = C.cream; circle(cx, cy, 58); ctx.stroke();
+    txt(o.label, cx, cy + 86, 23, C.cream, 'center', { weight: 900 });
+  });
+  ctx.restore();
+  if (t > 0.8) button(W / 2 - 160, 590, 320, 64, '반박하러 가기!', () => startRebut(), { size: 28 });
 }
 function resolveOrb(b, orb) {
   const o = orb.opt, P = G.P;
@@ -1275,7 +1323,7 @@ function updateBoss(dt) {
     o.t += dt; o.born += dt;
     o.x += o.vx * dt; o.y += o.vy * dt;
     if (o.x < a.x + o.r + 20 || o.x > a.x + a.w - o.r - 20) { o.vx *= -1; o.x = clamp(o.x, a.x + o.r + 20, a.x + a.w - o.r - 20); }
-    if (o.y < 410 || o.y > a.h - o.r - 30) { o.vy *= -1; o.y = clamp(o.y, 410, a.h - o.r - 30); }
+    if (o.y < 465 || o.y > a.h - o.r - 34) { o.vy *= -1; o.y = clamp(o.y, 465, a.h - o.r - 34); }
   }
   if (!P.dead) for (const o of b.orbs.slice()) if (o.born > 0.45 && dist(o.x, o.y, P.x, P.y) < o.r + P.r) { resolveOrb(b, o); break; }
   if (b.stun > 0) { b.stun -= dt; return; }
@@ -1298,7 +1346,7 @@ function updateBoss(dt) {
       if (p.t > 3.4) cool();
     } else if (p.kind === 'sweep') {
       const warn = p.t < 0.9;
-      const sy = warn ? 390 : 390 + (p.t - 0.9) / 3.0 * (a.h - 390);
+      const sy = warn ? 440 : 440 + (p.t - 0.9) / 3.0 * (a.h - 440);
       b.lasers = [{ kind: 'h', y: sy, gap: p.gap, warn }];
       if (!warn && !P.dead && Math.abs(P.y - sy) < 10 + P.r * 0.7 && Math.abs(P.x - p.gap) > 95) hurtPlayer(15, P.x, sy - 20);
       if (p.t > 3.9) cool();
@@ -1346,6 +1394,8 @@ function updateStage(dt) {
       if (G.mode === 'levelup') menuNav();
     }
   } else if (G.mode === 'record') { G.recT += dt; if (G.recT >= readSec()) menuNav(); }
+  else if (G.mode === 'claim') { G.claimT += dt; if (G.claimT > 0.8) menuNav(); }
+  else if (G.mode === 'down') { G.downT += dt; updateFx(dt); if (G.downT >= reviveSec()) menuNav(); }
   else if (G.mode === 'clear') { G.clearT += dt; updateFx(dt); if (G.clearT > 1.2) menuNav(); }
   else if (G.mode === 'pause' || G.mode === 'gameover') menuNav();
   touchAct.dash = touchAct.skill = touchAct.swap = false;
@@ -1372,8 +1422,7 @@ function updatePlay(dt) {
   P.moving = ml > 0.1 && !P.dead;
   if (P.moving) P.last = { x: mx / Math.max(ml, 0.001), y: my / Math.max(ml, 0.001) };
   if (P.dead) {
-    P.deadT -= dt;
-    if (P.deadT <= 0) respawn();
+    // 쓰러진 동안은 'down' 화면이 맡는다
   } else {
     const dashPressed = hit('ShiftLeft') || hit('ShiftRight') || hit('Space') || touchAct.dash;
     if (dashPressed && G.restricted) { if (G.t - (G.dashWarnT || -9) > 1.2) { G.dashWarnT = G.t; addText(P.x, P.y - 64, '대시 금지 · 지구 출신', C.bad, 19); } }
@@ -1445,7 +1494,7 @@ function updatePlay(dt) {
     }
     if (b.life <= 0) continue;
     const bo = G.boss;
-    if (bo && !bo.dead && bo.dying <= 0 && dist(b.x, b.y, bo.x, bo.y) < (bo.shield ? 128 : 84) + b.r) { damageBoss(b.dmg, b.x, b.y); b.life = 0; }
+    if (bo && !bo.dead && bo.dying <= 0 && dist(b.x, b.y, bo.x, bo.y) < (bo.shield ? 152 : 100) + b.r) { damageBoss(b.dmg, b.x, b.y); b.life = 0; }
   }
   G.pB = G.pB.filter(b => b.life > 0);
   // 적 탄
@@ -1637,6 +1686,8 @@ function drawStage() {
   if (G.mode === 'brief') drawBrief();
   else if (G.mode === 'bossIntro') drawBossIntro();
   else if (G.mode === 'record') drawRecordCard();
+  else if (G.mode === 'claim') drawClaimCard();
+  else if (G.mode === 'down') drawDown();
   else if (G.mode === 'levelup') drawLevelUp();
   else if (G.mode === 'pause') drawPause();
   else if (G.mode === 'clear') drawClear();
@@ -2002,12 +2053,12 @@ function drawBoss(b) {
   ctx.fillStyle = 'rgba(10,8,30,0.35)'; ellipse(0, 130 - bob, 120, 22); ctx.fill();
   const img = IMG[b.def.img];
   if (img) {
-    const h = 236, w = img.width / img.height * h;
+    const h = 290, w = img.width / img.height * h;
     ctx.drawImage(img, -w / 2, -h / 2 - 10, w, h);
     if (b.flash > 0 || b.dying > 0) { ctx.globalAlpha = b.dying > 0 ? 0.3 + 0.3 * Math.sin(b.t * 30) : 0.55; ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(img, -w / 2, -h / 2 - 10, w, h); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
   } else drawBoss1Code(b, P);
   if (b.shield && b.dying <= 0) {
-    const r = 128 + Math.sin(b.t * 3) * 3;
+    const r = 152 + Math.sin(b.t * 3) * 3;
     ctx.fillStyle = 'rgba(255,177,46,0.12)'; circle(0, 0, r); ctx.fill();
     ctx.strokeStyle = 'rgba(255,200,90,0.85)'; ctx.lineWidth = 4; circle(0, 0, r); ctx.stroke();
     ctx.save(); circle(0, 0, r); ctx.clip();
@@ -2017,7 +2068,7 @@ function drawBoss(b) {
     }
     ctx.restore();
   }
-  if (b.breakT > 0) { ctx.strokeStyle = 'rgba(159,245,234,' + b.breakT + ')'; ctx.lineWidth = 8; circle(0, 0, 128 + (0.7 - b.breakT) * 200); ctx.stroke(); }
+  if (b.breakT > 0) { ctx.strokeStyle = 'rgba(159,245,234,' + b.breakT + ')'; ctx.lineWidth = 8; circle(0, 0, 152 + (0.7 - b.breakT) * 200); ctx.stroke(); }
   if (b.stun > 0) txt('흔들림!', 0, -150, 22, C.tealL, 'center', { stroke: C.ink, sw: 5 });
   ctx.restore();
 }
@@ -2081,9 +2132,9 @@ function drawOrb(o) {
   ctx.lineWidth = 4; ctx.strokeStyle = C.cream; circle(o.x, y, r); ctx.stroke();
   ctx.lineWidth = 2; ctx.strokeStyle = C.ink; circle(o.x, y, r + 2); ctx.stroke();
   if (s >= 1) {
-    setFont(16); const tw = ctx.measureText(o.opt.label).width + 22;
-    rr(o.x - tw / 2, y + r + 8, tw, 28, 14); ctx.fillStyle = 'rgba(27,24,56,0.92)'; ctx.fill(); ctx.strokeStyle = C.cream; ctx.lineWidth = 2; ctx.stroke();
-    txt(o.opt.label, o.x, y + r + 23, 16, C.cream, 'center');
+    setFont(20, 900); const tw = ctx.measureText(o.opt.label).width + 26;
+    rr(o.x - tw / 2, y + r + 8, tw, 34, 17); ctx.fillStyle = 'rgba(27,24,56,0.92)'; ctx.fill(); ctx.strokeStyle = C.cream; ctx.lineWidth = 2; ctx.stroke();
+    txt(o.opt.label, o.x, y + r + 26, 20, C.cream, 'center', { weight: 900 });
   }
   ctx.restore();
 }
@@ -2139,10 +2190,6 @@ function drawHUD() {
   if (G.banner) drawBanner(G.banner);
   if (G.mode === 'play') drawCoachBar();
   if (G.toasts.length) drawToast(G.toasts[0]);
-  if (P.dead) {
-    dim(0.25);
-    txt(save.difficulty === 'easy' ? '잠깐 쉬는 중…' : '쓰러졌어요!', W / 2, H / 2, 40, C.cream, 'center', { stroke: C.ink, sw: 8 });
-  }
 }
 function drawHeart(x, y, full) {
   ctx.save(); ctx.translate(x, y); ctx.scale(0.8, 0.8);
@@ -2152,7 +2199,7 @@ function drawHeart(x, y, full) {
 }
 function drawBossBar(b) {
   const x = 372, w = 536, y = 12;
-  panel(x, y, w, 104, { fill: 'rgba(27,24,56,0.9)', r: 16 });
+  panel(x, y, w, 116, { fill: 'rgba(27,24,56,0.92)', r: 16 });
   txt(b.def.name, x + 18, y + 22, 19, C.amberL, 'left');
   txt(b.shield ? '방어막' : '공격 가능!', x + w - 18, y + 22, 16, b.shield ? C.amber : C.good, 'right');
   rr(x + 18, y + 38, w - 36, 14, 7); ctx.fillStyle = 'rgba(10,8,30,0.8)'; ctx.fill();
@@ -2161,9 +2208,9 @@ function drawBossBar(b) {
   if (b.dying > 0) return;
   if (b.shield) {
     const claim = '「' + b.def.rounds[b.round].claim + '」';
-    const lines = wrap(claim, w - 40, 18, 800);
-    lines.slice(0, 2).forEach((l, i) => txt(l, x + w / 2, y + 68 + i * 24, 18, C.cream, 'center'));
-    if (lines.length < 2) txt('맞는 증거 구슬에 몸으로 닿아 반박하세요', x + w / 2, y + 92, 14, C.tealL, 'center', { weight: 700 });
+    const lines = wrap(claim, w - 36, 22, 900);
+    lines.slice(0, 2).forEach((l, i) => txt(l, x + w / 2, y + 72 + i * 28, 22, C.amberL, 'center', { weight: 900 }));
+    if (lines.length < 2) txt('이 주장이 틀렸다는 증거 구슬에 닿으세요', x + w / 2, y + 100, 16, C.tealL, 'center', { weight: 600 });
   } else txt('지금이야! 공명파로 공격하세요', x + w / 2, y + 76, 20, C.good, 'center');
 }
 function drawControls() {
@@ -2365,37 +2412,51 @@ function drawBossIntro() {
   if (t > 0.7) txt('클릭 · Enter: 시작', 92, 568, 17, C.cream, 'left', { stroke: C.ink, sw: 4 });
   ctx.restore();
 }
+function recordLayout(r, ds) {
+  const tw = W - 140 - 560, sz = { title: 46, line: 30, detail: ds };
+  const tl = wrap(r.title, tw, sz.title, 900), ll = wrap(r.line, tw - 36, sz.line, 600), dl = wrap(r.detail, tw, sz.detail, 600);
+  const dlh = Math.round(sz.detail * 1.45);
+  const textH = 44 + tl.length * 56 + 10 + (ll.length * 42 + 28) + 26 + dl.length * dlh;
+  return { tw, sz, tl, ll, dl, dlh, textH };
+}
 function drawRecordCard() {
   modalStart(); dim(0.74);
-  const r = G.recView, x = 70, y = 18, w = W - 140, h = 684;
+  const r = G.recView;
+  let Lo = recordLayout(r, 28);
+  if (Lo.textH > 520) Lo = recordLayout(r, 25);
+  if (Lo.textH > 520) Lo = recordLayout(r, 22);
+  const pw = 490, ph = 368;
+  const contentH = Math.max(ph, Lo.textH);
+  const x = 70, w = W - 140, h = Math.min(H - 16, 78 + contentH + 112), y = (H - h) / 2;
   const pop = Math.min(1, G.recT * 6);
   ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(0.9 + 0.1 * pop, 0.9 + 0.1 * pop); ctx.translate(-W / 2, -H / 2); ctx.globalAlpha = pop;
   panel(x, y, w, h, { fill: 'rgba(22,19,50,0.98)', stroke: C.tealL, r: 24, lw: 4 });
-  rr(x + 30, y + 22, 200, 44, 22); ctx.fillStyle = C.tealL; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
-  txt(G.recFresh ? '지구 기록 획득!' : '지구 기록', x + 130, y + 44, 22, C.ink, 'center', { weight: 900 });
-  txt('실제 역사 기록이에요', x + 248, y + 45, 20, '#bdb6e6', 'left', { weight: 600 });
-  const px = x + 30, py = y + 86, pw = 420, ph = 330;
+  rr(x + 30, y + 20, 210, 46, 23); ctx.fillStyle = C.tealL; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt(G.recFresh ? '지구 기록 획득!' : '지구 기록', x + 135, y + 43, 24, C.ink, 'center', { weight: 900 });
+  txt('실제 역사 기록이에요', x + 258, y + 44, 21, '#bdb6e6', 'left', { weight: 600 });
+  const px = x + 30, py = y + 82;
   const img = PHOTO[r.photo];
   if (img) { rr(px, py, pw, ph, 12); ctx.fillStyle = '#141228'; ctx.fill(); drawContain(img, px + 4, py + 4, pw - 8, ph - 8); rr(px, py, pw, ph, 12); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke(); }
   else drawPhotoBox(r, px, py, pw, ph, { r: 12 });
-  const tx = x + 480, tw = w - 510;
-  txt(r.year + (r.place ? ' · ' + r.place : ''), tx, y + 104, 24, C.amberL, 'left', { weight: 600 });
-  const tl = para(r.title, tx, y + 152, tw, 40, C.cream, 48, { weight: 900 });
-  let yy = y + 152 + tl * 48 + 4;
-  const ll = wrap(r.line, tw - 36, 26, 600);
-  rr(tx - 4, yy - 4, tw + 4, ll.length * 36 + 28, 14); ctx.fillStyle = 'rgba(247,197,72,0.14)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(247,197,72,0.6)'; ctx.stroke();
-  ll.forEach((l, i) => txt(l, tx + 14, yy + 24 + i * 36, 26, C.amberL, 'left', { weight: 600 }));
-  yy += ll.length * 36 + 50;
-  para(r.detail, tx, yy, tw, 23, '#efeaff', 35, { weight: 600 });
+  const tx = x + 550, tw = Lo.tw;
+  let yy = py + 18;
+  txt(r.year + (r.place ? ' · ' + r.place : ''), tx, yy, 26, C.amberL, 'left', { weight: 600 });
+  yy += 44;
+  Lo.tl.forEach((l, i) => txt(l, tx, yy + i * 56, Lo.sz.title, C.cream, 'left', { weight: 900 }));
+  yy += Lo.tl.length * 56 + 10 - 28;
+  rr(tx - 4, yy, tw + 4, Lo.ll.length * 42 + 28, 14); ctx.fillStyle = 'rgba(247,197,72,0.15)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(247,197,72,0.65)'; ctx.stroke();
+  Lo.ll.forEach((l, i) => txt(l, tx + 16, yy + 35 + i * 42, Lo.sz.line, C.amberL, 'left', { weight: 600 }));
+  yy += Lo.ll.length * 42 + 28 + 26 + Lo.dlh / 2;
+  Lo.dl.forEach((l, i) => txt(l, tx, yy + i * Lo.dlh, Lo.sz.detail, '#f1ecff', 'left', { weight: 600 }));
   ctx.restore();
-  const left = readSec() - G.recT, bx = W / 2 - 150, by = y + h - 96;
+  const left = readSec() - G.recT, bx = W / 2 - 160, by = y + h - 100;
   if (left > 0) {
-    button(bx, by, 300, 66, '모으기 (' + Math.ceil(left) + ')', null, { size: 30, disabled: true });
-    rr(bx + 14, by + 54, 272 * Math.min(1, G.recT / readSec()), 6, 3); ctx.fillStyle = C.tealL; ctx.fill();
-    txt('기록을 읽어 보세요. 잠시 뒤에 모을 수 있어요', W / 2, y + h - 14, 17, '#bdb6e6', 'center', { weight: 600 });
+    button(bx, by, 320, 68, '모으기 (' + Math.ceil(left) + ')', null, { size: 32, disabled: true });
+    rr(bx + 14, by + 56, 292 * Math.min(1, G.recT / readSec()), 6, 3); ctx.fillStyle = C.tealL; ctx.fill();
+    txt('기록을 읽어 보세요. 잠시 뒤에 모을 수 있어요', W / 2, y + h - 16, 18, '#bdb6e6', 'center', { weight: 600 });
   } else {
-    button(bx, by, 300, 66, '모으기', () => closeRecord(), { size: 30 });
-    txt('Enter · Space · 클릭', W / 2, y + h - 14, 17, '#bdb6e6', 'center', { weight: 600 });
+    button(bx, by, 320, 68, '모으기', () => closeRecord(), { size: 32 });
+    txt('Enter · Space · 클릭', W / 2, y + h - 16, 18, '#bdb6e6', 'center', { weight: 600 });
   }
 }
 function drawLevelUp() {
@@ -2507,6 +2568,7 @@ if (DEBUG) {
     xp(n) { gainXp(n); },
     killGens(ids) { G.gens.forEach(g => { if (!ids || ids.includes(g.id)) damageGen(g, 9999); }); },
     bossHp(f) { const b = G.boss; b.hp = b.maxHp * f; },
+    down() { playerDown(); },
     reset() { save = defaultSave(); writeSave(); }
   };
 }
