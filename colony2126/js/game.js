@@ -37,7 +37,8 @@ const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0
 let usingTouch = false;
 
 function resize() {
-  const ww = window.innerWidth, wh = window.innerHeight;
+  const host = document.body;
+  const ww = (host && host.clientWidth) || window.innerWidth, wh = (host && host.clientHeight) || window.innerHeight;
   const s = Math.min(ww / W, wh / H);
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const cw = Math.max(1, Math.floor(W * s)), ch = Math.max(1, Math.floor(H * s));
