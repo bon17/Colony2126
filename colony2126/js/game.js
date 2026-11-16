@@ -64,7 +64,7 @@ function tryLoad(store, key, base, exts) {
   img.onerror = () => { i++; if (i < exts.length) img.src = base + '.' + exts[i]; };
   img.src = base + '.' + exts[0];
 }
-['title', 'logo', 'op1', 'op2', 'op3', 'map', 'after1', 'after2', 'after3', 'after4', 'after5', 'boss1', 'boss2', 'boss3', 'boss4', 'boss5', 'boss_final', 'hero', 'ending1', 'ending2']
+['title', 'logo', 'card', 'op1', 'op2', 'op3', 'map', 'after1', 'after2', 'after3', 'after4', 'after5', 'boss1', 'boss2', 'boss3', 'boss4', 'boss5', 'boss_final', 'hero', 'ending1', 'ending2']
   .forEach(n => tryLoad(IMG, n, 'img/' + n, ['webp', 'jpg', 'png']));
 (function loadPhotos() {
   const keys = new Set();
@@ -713,7 +713,7 @@ function ResultScene(r) {
       });
       const def = stageById(r.id);
       if (def.card) {
-        drawInstitutionCard(W / 2 - 330, 445, 300, 130, def.card, 1);
+        drawCardArt(W / 2 - 300, 412, 118, def.card, 1);
         txt('기술: ' + (D.skills[def.skill] ? D.skills[def.skill].name : ''), W / 2 + 10, 480, 23, C.tealL, 'left');
         txt('운동 배지: ' + def.badge, W / 2 + 10, 520, 23, C.amberL, 'left');
         txt('스테이지 고르기에서 Q로 기술을 바꿔요', W / 2 + 10, 556, 16, '#bdb6e6', 'left', { weight: 600 });
@@ -722,6 +722,19 @@ function ResultScene(r) {
       button(W / 2 + 20, 630, 280, 58, '다시 하기', () => go(() => StageScene(r.id)), { fill: '#d9d2f0' });
     }
   };
+}
+function drawCardArt(cx, y, w, card, a) {
+  const h = w * 1.5, x = cx - w / 2, u = w / 300;
+  ctx.save(); ctx.globalAlpha = a == null ? 1 : a;
+  if (IMG.card) ctx.drawImage(IMG.card, x, y, w, h);
+  else { rr(x, y, w, h, 18 * u); ctx.fillStyle = C.cream; ctx.fill(); ctx.lineWidth = 8 * u; ctx.strokeStyle = C.tealD; ctx.stroke(); }
+  txt('제' + card.article + '조', cx, y + h * 0.098, 21 * u, C.tealD, 'center', { weight: 900 });
+  txt('제도 카드', cx, y + h * 0.24, 21 * u, C.rust, 'center', { weight: 600 });
+  txt(card.name, cx, y + h * 0.35, 56 * u, C.ink, 'center', { weight: 900 });
+  txt(card.year, cx, y + h * 0.46, 36 * u, C.tealD, 'center', { weight: 900 });
+  wrap(card.text, w * 0.66, 25 * u, 600).forEach((l, i) => txt(l, cx, y + h * 0.565 + i * 34 * u, 25 * u, '#4a3a2c', 'center', { weight: 600 }));
+  txt('헌장 제' + card.article + '조의 재료', cx, y + h * 0.78, 19 * u, '#7a5a3a', 'center', { weight: 600 });
+  ctx.restore();
 }
 function drawInstitutionCard(x, y, w, h, card, a) {
   ctx.save(); ctx.globalAlpha = a;
@@ -851,8 +864,9 @@ function layoutStage1() {
   wall('wB', EX0, 1796, EX1 - EX0, 16, ['g2d']);
   gen('g2d', 1270, 1950, 320, { name: '분리선 발생기', big: true });
   wall('wA', 0, 796, 1600, 16, ['g3a', 'g3b']);
-  gen('g3a', 330, 935, 190); gen('g3b', 1270, 935, 190);
+  gen('g3a', 330, 935, 120); gen('g3b', 1270, 935, 120);
   wall('gate', 560, 712, 480, 16, [], { active: false, fade: 0, gate: true });
+  wall('recgate', 560, 744, 480, 16, [], { recordGate: true, soft: true });
   L.zones = [
     { y0: 2812, y1: 3800, exit: 'wC', check: { x: 1270, y: 3590 }, label: 'A 구역 · 지구 출신 숙소', xr: [EX0 + 40, EX1 - 40],
       pool: ['drone', 'drone', 'chaser'], max: 4, every: 4.0,
@@ -861,8 +875,8 @@ function layoutStage1() {
       pool: ['drone', 'chaser', 'drone'], max: 6, every: 3.2,
       initial: [['turret', 1080, 2060], ['turret', 1460, 2060], ['drone', 1150, 2460], ['drone', 1400, 2330, 'r1_beach'], ['chaser', 1270, 2240]] },
     { y0: 812, y1: 1796, exit: 'wA', check: { x: 800, y: 1740 }, label: 'C 구역 · 관리 구역',
-      pool: ['drone', 'chaser', 'guard', 'drone'], max: 8, every: 2.8,
-      initial: [['turret', 210, 1060], ['turret', 1390, 1060], ['guard', 800, 1150, 'r1_nobel'], ['drone', 500, 1400], ['drone', 1100, 1350], ['chaser', 800, 1520]] }
+      pool: ['drone', 'chaser', 'drone'], max: 6, every: 3.4,
+      initial: [['turret', 210, 1060], ['turret', 1390, 1060], ['guard', 800, 1150, 'r1_nobel'], ['drone', 500, 1400], ['chaser', 1100, 1450]] }
   ];
   // 기록 칩: 지구 출신 구역 2개, 화성 태생 구역 2개(분리선이 꺼져야 갈 수 있다), C 구역 2개
   L.chips = [ ['r1_sign', 1270, 3200], ['r1_king', 1460, 3060], ['r1_civil', 520, 2620], ['r1_vote', 300, 3250], ['r1_apartheid', 230, 1620], ['r1_robben', 1370, 1580] ]
@@ -915,6 +929,8 @@ const LAYOUTS_COACH = {
     return [
       { title: '먼저 움직여 보세요', sub: () => touchUI() ? '왼쪽 화면을 손가락으로 끌면 움직여요' : 'WASD 또는 방향키로 움직여요', done: c => c.moved > 160 },
       { title: '나는 지구 출신이에요', sub: () => '지구 출신은 이 좁은 구역에만 있어야 해요. 느리게 움직이고, 대시도 막혀 있어요', done: () => false, skipAfter: 5.5 },
+      { title: '공명 파동을 써 보세요', sub: () => touchUI() ? "오른쪽 아래 '파동' 버튼: 둘레의 주황 탄을 지우고 드론을 밀어내요" : 'E 키: 둘레의 주황 탄을 지우고 드론을 밀어내요 (7초마다 쓸 수 있어요)',
+        done: () => G.skillUsed, skipAfter: 15 },
       { title: '드론에게 다가가 보세요', sub: () => '하얀 공 모양 드론이 오더의 기계예요. 공격은 자동! 가까이 가면 알아서 쏴요', done: () => G.stats.kills >= 1,
         target: () => nearestOf(G.enemies.filter(e => !e.dead)), skipAfter: 15 },
       { title: '발생기를 부수세요', sub: () => '노란 화살표를 따라가요. 발생기 옆에 있으면 자동으로 공격해요', done: () => gensC().length < 2, target: () => nearestOf(gensC()) },
@@ -1016,7 +1032,7 @@ function collide(o, isPlayer) {
   let touchedLaser = false;
   for (const s of G.L.solids) pushOutRect(o, s.x, s.y, s.w, s.h);
   for (const d of G.L.domes || []) pushOutCircle(o, d.x, d.y, d.r);
-  for (const w of G.walls) if (w.active && pushOutRect(o, w.x, w.y, w.w, w.h)) touchedLaser = true;
+  for (const w of G.walls) if (w.active && pushOutRect(o, w.x, w.y, w.w, w.h) && !w.soft) touchedLaser = true;
   for (const g of G.gens) if (g.alive) pushOutCircle(o, g.x, g.y, g.r);
   if (isPlayer) {
     for (const c of G.caps) if (!c.freed) pushOutCircle(o, c.x, c.y, 24);
@@ -1112,10 +1128,16 @@ function updateEnemy(e, dt) {
 }
 
 /* ----- 플레이어 ----- */
+const allyBonus = () => 1 + 0.1 * G.settlers.length;
 function hurtPlayer(dmg, sx, sy, force) {
   const P = G.P;
   if (P.dead || G.god) return;
   if (!force && (P.inv > 0 || P.dashT > 0 || P.marchT > 0)) return;
+  // 연대: 동료가 10초에 한 번씩 대신 막아 준다
+  if (!force) {
+    const g = G.settlers.find(s => !(s.guardAt > G.t));
+    if (g) { g.guardAt = G.t + 10; P.inv = 0.7; addText(g.x, g.y - 50, '막아 줌!', C.tealL, 21); burst(P.x, P.y - 6, C.tealL, 12, 180); Sound.play('ui'); return; }
+  }
   P.hp -= dmg; P.inv = 0.9; G.shake = Math.max(G.shake, 7);
   const a = Math.atan2(P.y - sy, P.x - sx);
   P.kx = Math.cos(a) * 280; P.ky = Math.sin(a) * 280;
@@ -1138,6 +1160,7 @@ function drawDown() {
   const t = G.downT, left = reviveSec() - t, easy = save.difficulty === 'easy';
   panel(W / 2 - 330, 150, 660, 420, { fill: 'rgba(30,16,30,0.96)', stroke: C.red, r: 24, lw: 4 });
   txt('쓰러졌어요!', W / 2, 220, 52, C.cream, 'center', { weight: 900, stroke: C.ink, sw: 8 });
+  if (!easy && G.lives === 1) txt('마지막 목숨이에요! 또 쓰러지면 스테이지를 처음부터 해야 해요', W / 2, 318, 21, C.bad, 'center', { weight: 900 });
   txt(easy ? '조금 쉬었다가 그 자리에서 다시 일어나요' : '남은 목숨 ' + G.lives + '개 · 구역 입구에서 다시 시작해요', W / 2, 282, 22, '#ffd0c8', 'center', { weight: 600 });
   const cx = W / 2, cy = 380, r = 58;
   ctx.fillStyle = 'rgba(10,8,30,0.7)'; circle(cx, cy, r); ctx.fill();
@@ -1151,7 +1174,8 @@ function respawn() {
   if (save.difficulty !== 'easy') { if (G.lives <= 0) { G.mode = 'gameover'; ui.focus = 0; return; } P.x = G.checkpoint.x; P.y = G.checkpoint.y; }
   P.dead = false; P.hp = G.st.maxHp; P.inv = 2.2; P.kx = P.ky = 0;
   G.eB = []; G.mode = 'play';
-  banner(save.difficulty === 'easy' ? '다시 일어났어요!' : '다시 도전!', save.difficulty === 'easy' ? '' : '남은 목숨 ' + G.lives, C.tealL, 1.6);
+  if (save.difficulty !== 'easy' && G.lives === 1) banner('마지막 목숨!', '또 쓰러지면 스테이지를 처음부터 해야 해요', C.bad, 4);
+  else banner(save.difficulty === 'easy' ? '다시 일어났어요!' : '다시 도전!', save.difficulty === 'easy' ? '' : '남은 목숨 ' + G.lives, C.tealL, 1.6);
 }
 function findTarget(x, y, range) {
   let best = null, bd = range;
@@ -1172,7 +1196,7 @@ function useSkill() {
   const id = G.skills[G.skillIdx];
   if (G.skillCd > 0) return;
   const P = G.P;
-  G.skillCd = SKILLS[id].cd;
+  G.skillCd = SKILLS[id].cd; G.skillUsed = true;
   if (id === 'pulse') { G.pulses.push({ x: P.x, y: P.y, r: 10, max: 260, hit: new Set() }); G.shake = Math.max(G.shake, 5); }
   if (id === 'march') { P.marchT = 4; banner(D.skills.march.name, '', C.tealL, 1.2); }
   Sound.play('good');
@@ -1254,6 +1278,32 @@ function spawnOrbs(b) {
   // 라운드마다 주장을 크게 보여 주고 멈춘다. 「반박하러 가기」를 누르면 다시 시작
   G.mode = 'claim'; G.claimT = 0; G.eB = []; ui.focus = 0;
 }
+function endRebutCard() { if (G.mode !== 'rebut' || G.rebutT < 1) return; G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 1); }
+function drawRebutCard() {
+  modalStart(); dim(0.7);
+  const r = G.rebut, t = G.rebutT, pop = Math.min(1, t * 5);
+  ctx.save(); ctx.globalAlpha = pop;
+  panel(110, 50, W - 220, 620, { fill: 'rgba(16,40,38,0.97)', stroke: C.good, r: 26, lw: 5 });
+  const sc = 1 + Math.max(0, 0.3 - t) * 1.5;
+  ctx.save(); ctx.translate(W / 2, 120); ctx.scale(sc, sc); txt('반박 성공!', 0, 0, 68, C.good, 'center', { weight: 900, stroke: C.ink, sw: 10 }); ctx.restore();
+  const cl = '「' + r.claim + '」';
+  setFont(26, 600); const cw = Math.min(ctx.measureText(cl).width, W - 320);
+  txt(cl, W / 2, 196, 26, '#c9c2ef', 'center', { weight: 600 });
+  ctx.strokeStyle = C.bad; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(W / 2 - cw / 2 - 6, 198); ctx.lineTo(W / 2 + cw / 2 + 6, 198); ctx.stroke();
+  const cx = 300, cy = 370;
+  ctx.save(); circle(cx, cy, 92); ctx.clip();
+  const img = photoOf(r.opt);
+  if (img) drawCover(img, cx - 92, cy - 92, 184, 184);
+  else { ctx.fillStyle = '#3b3570'; ctx.fillRect(cx - 92, cy - 92, 184, 184); const rec = r.opt.record && recordById(r.opt.record); txt(rec ? rec.year : '기록', cx, cy, 34, C.amberL, 'center', { weight: 900 }); }
+  ctx.restore();
+  ctx.lineWidth = 6; ctx.strokeStyle = C.good; circle(cx, cy, 92); ctx.stroke();
+  txt('증거', cx, cy + 122, 20, '#bff5d6', 'center', { weight: 600 });
+  txt(r.opt.label, cx, cy + 154, 28, C.cream, 'center', { weight: 900 });
+  para(r.opt.good || '', 450, 300, W - 600, 34, C.cream, 46, { weight: 900 });
+  txt('방어막이 깨졌어요! 지금 보스를 공격하세요', 450, 520, 25, C.tealL, 'left', { weight: 600 });
+  ctx.restore();
+  if (t > 1) button(W / 2 - 170, 580, 340, 66, '공격하러 가기!', () => endRebutCard(), { size: 30 });
+}
 function startRebut() { if (G.mode !== 'claim' || G.claimT < 0.8) return; G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 1); }
 function drawClaimCard() {
   modalStart(); dim(0.72);
@@ -1292,7 +1342,7 @@ function resolveOrb(b, orb) {
     b.stun = 1.8; b.pat = null; b.lasers = []; G.eB = [];
     G.shake = 14; burst(b.x, b.y, C.tealL, 30, 340); burst(orb.x, orb.y, C.mustard, 20, 260);
     gainXp(30);
-    banner('반박 성공!', o.good || '', C.good, 3.6);
+    G.rebut = { opt: o, claim: b.def.rounds[b.round].claim }; G.rebutT = 0; G.mode = 'rebut'; ui.focus = 0;
     Sound.play('good');
   } else {
     G.stats.wrong++;
@@ -1302,7 +1352,7 @@ function resolveOrb(b, orb) {
     hurtPlayer(10, orb.x, orb.y, true);
     for (let k = 0; k < 6; k++) enemyShot(orb.x, orb.y, k / 6 * TAU, 100, 7);
     P.inv = 1.0;
-    banner('반박 실패!', o.why || '', C.bad, 4.2);
+    banner('반박 실패!', o.why || '', C.bad, 5.5);
     Sound.play('bad');
   }
 }
@@ -1396,6 +1446,7 @@ function updateStage(dt) {
     }
   } else if (G.mode === 'record') { G.recT += dt; if (G.recT >= readSec()) menuNav(); }
   else if (G.mode === 'claim') { G.claimT += dt; if (G.claimT > 0.8) menuNav(); }
+  else if (G.mode === 'rebut') { G.rebutT += dt; if (G.rebutT > 1) menuNav(); }
   else if (G.mode === 'down') { G.downT += dt; updateFx(dt); if (G.downT >= reviveSec()) menuNav(); }
   else if (G.mode === 'clear') { G.clearT += dt; updateFx(dt); if (G.clearT > (G.clearStep === 0 ? 2 : 1.2)) menuNav(); }
   else if (G.mode === 'pause' || G.mode === 'gameover') menuNav();
@@ -1448,7 +1499,7 @@ function updatePlay(dt) {
   P.fireT -= dt; if (P.glow > 0) P.glow -= dt * 3;
   const target = P.dead ? null : findTarget(P.x, P.y, st.range);
   if (target) P.aim = Math.atan2(target.y - P.y, target.x - P.x); else if (P.moving) P.aim = Math.atan2(my, mx);
-  if (target && P.fireT <= 0) { P.fireT = 1 / st.fireRate; fireWave(P.x + Math.cos(P.aim) * 18, P.y - 4 + Math.sin(P.aim) * 18, P.aim, st.dmg, st.multi, 'p'); P.glow = 1; }
+  if (target && P.fireT <= 0) { P.fireT = 1 / st.fireRate; fireWave(P.x + Math.cos(P.aim) * 18, P.y - 4 + Math.sin(P.aim) * 18, P.aim, st.dmg * allyBonus(), st.multi, 'p'); P.glow = 1; }
   // 연대: 구출한 정착민과 동료 드론
   G.trailT = (G.trailT || 0) - dt;
   if (G.trailT <= 0) { G.trailT = 0.05; G.trail.push({ x: P.x, y: P.y }); if (G.trail.length > 120) G.trail.shift(); }
@@ -1461,7 +1512,7 @@ function updatePlay(dt) {
     s.fireT -= dt;
     const tg = findTarget(s.x, s.y, 320);
     if (tg) s.aim = Math.atan2(tg.y - s.y, tg.x - s.x);
-    if (tg && s.fireT <= 0 && !P.dead) { s.fireT = 1.0; fireWave(s.x, s.y - 6, s.aim, st.dmg * 0.55, 1, 's', 320); }
+    if (tg && s.fireT <= 0 && !P.dead) { s.fireT = 0.7; fireWave(s.x, s.y - 6, s.aim, st.dmg * 0.75, 1, 's', 340); }
   });
   G.allyT = (G.allyT || 0) - dt;
   if (st.allies > 0 && G.allyT <= 0 && !P.dead) {
@@ -1544,6 +1595,7 @@ function updatePlay(dt) {
     c.t += dt;
     if (!c.freed && !P.dead && dist(c.x, c.y, P.x, P.y) < 54) {
       c.freed = true; G.stats.rescued++;
+      showAllyTip();
       G.settlers.push({ look: c.look, x: c.x, y: c.y, t: 0, fireT: 0.5, aim: -Math.PI / 2, moving: false });
       burst(c.x, c.y, C.tealL, 24, 220); addText(c.x, c.y - 50, '정착민이 함께해요!', C.tealL, 22);
       Sound.play('good');
@@ -1574,6 +1626,8 @@ function updatePlay(dt) {
       }
     }
   }
+  const rg = wallById('recgate');
+  if (rg && rg.active && recordsLeft() === 0) { rg.active = false; rg.fade = 1; banner('기록 문이 열렸어요!', '기록을 모두 모았어요. 이제 보스 구역으로 들어가요', C.tealL, 3.5); Sound.play('good'); }
   if (!G.boss && !wallById('wA').active && P.y < 690 && !P.dead) startBoss();
   if (G.boss && !G.boss.dead) updateBoss(dt);
   updateCoach(dt); updateTips(dt); updateNpcs(dt);
@@ -1604,9 +1658,15 @@ function damageGen(g, dmg) {
     }
   }
 }
+function showAllyTip() {
+  if (G.tipsSeen.ally) return;
+  G.tipsSeen.ally = true;
+  G.tip = { title: '동료가 생겼어요! (연대)', sub: '함께 쏘고, 동료 1명마다 공격력 +10%, 10초에 한 번 대신 막아 줘요. 힘을 모으는 것이 연대예요', t: 0, dur: 7 };
+}
 function liberate() {
   G.restricted = false; G.freeT = G.t;
   banner('분리선 해제!', '이제 어디든 갈 수 있어요. 이동 제한과 대시 금지가 풀렸어요!', C.tealL, 4.5);
+  G.tip = { title: '이제 대시를 쓸 수 있어요!', sub: (touchUI() ? '대시 버튼' : 'Shift 또는 Space') + ': 짧게 빨리 움직이고, 그동안은 탄에 맞지 않아요', t: 0, dur: 7 };
   G.shake = Math.max(G.shake, 12);
   burst(G.P.x, G.P.y, C.tealL, 30, 300);
   const P = G.P;
@@ -1688,6 +1748,7 @@ function drawStage() {
   else if (G.mode === 'bossIntro') drawBossIntro();
   else if (G.mode === 'record') drawRecordCard();
   else if (G.mode === 'claim') drawClaimCard();
+  else if (G.mode === 'rebut') drawRebutCard();
   else if (G.mode === 'down') drawDown();
   else if (G.mode === 'levelup') drawLevelUp();
   else if (G.mode === 'pause') drawPause();
@@ -1699,15 +1760,36 @@ function guideGoal() {
   if (G.boss || P.dead || G.mode !== 'play') return null;
   if (G.coach) { const st = G.coach.steps[G.coach.step]; if (st && st.target) { const t = st.target(); if (t) return { x: t.x, y: t.y, near: true }; } }
   const z = G.zones[G.zoneIdx];
-  if (!z) return { x: 800, y: 640 };
+  if (!z) { if (recordGateNeeded()) { const c = nearestChipTarget(); if (c) return { x: c.x, y: c.y }; } return { x: 800, y: 640 }; }
   const w = wallById(z.exit);
   if (w.active) {
     let best = null, bd = 1e9;
     G.gens.forEach(g => { if (g.alive && w.gens.includes(g.id)) { const d = dist(P.x, P.y, g.x, g.y); if (d < bd) { bd = d; best = g; } } });
     return best && bd > 420 ? { x: best.x, y: best.y } : null;
   }
+  if (recordGateNeeded()) {
+    const here = chipTargets().filter(c => c.y >= z.y0 && c.y < z.y1);
+    if (here.length) { const c = nearestOf(here); return { x: c.x, y: c.y }; }
+    const behind = chipTargets().filter(c => zoneIndexAt(c.y) < G.zoneIdx || G.zoneIdx === G.zones.length - 1);
+    if (behind.length && (G.zoneIdx === G.zones.length - 1 || !G.restricted)) { const c = nearestOf(behind); return { x: c.x, y: c.y }; }
+  }
   return G.zoneIdx === G.zones.length - 1 ? { x: 800, y: 700 } : { x: clamp(P.x, 240, 1360), y: z.y0 - 80 };
 }
+// 지금 갈 수 있는 기록 칩(과 칩을 가진 적)만 고른다: 분리선 건너편, 아직 꺼지지 않은 벽 너머는 뺀다
+function reachable(x, y) {
+  if (G.restricted && x < 1000) return false;
+  const here = G.zoneIdx < 0 ? G.zones.length : G.zoneIdx, zc = zoneIndexAt(y);
+  if (zc < 0 || zc <= here) return true;
+  for (let i = here; i < zc; i++) { const w = wallById(G.zones[i].exit); if (w && w.active) return false; }
+  return true;
+}
+function chipTargets() {
+  const out = [];
+  G.chips.forEach(c => { if (!c.got && !save.records[c.id] && reachable(c.x, c.y)) out.push({ x: c.x, y: c.y }); });
+  G.enemies.forEach(e => { if (e.chip && !e.dead && !save.records[e.chip] && reachable(e.x, e.y)) out.push({ x: e.x, y: e.y }); });
+  return out;
+}
+function nearestChipTarget() { return nearestOf(chipTargets()); }
 function drawGuide() {
   const g = guideGoal(), P = G.P;
   if (!g || dist(P.x, P.y, g.x, g.y) < (g.near ? 110 : 170)) return;
@@ -1939,7 +2021,24 @@ function drawProp(p) {
   }
   ctx.restore();
 }
+function fieldRecords() { return D.records.filter(r => r.stage === G.def.id && r.id !== G.L.bossChip); }
+function recordsLeft() { return fieldRecords().filter(r => !save.records[r.id]).length; }
+function recordGateNeeded() { const rg = wallById('recgate'); return !!rg && rg.active; }
+function drawRecordGate(w) {
+  const a = w.active ? 1 : Math.max(0, w.fade); if (a <= 0) return;
+  ctx.save(); ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(44,200,182,0.22)'; ctx.fillRect(w.x, w.y - 14, w.w, w.h + 28);
+  ctx.fillStyle = 'rgba(159,245,234,0.75)'; ctx.fillRect(w.x, w.y, w.w, w.h);
+  ctx.fillStyle = 'rgba(255,255,255,' + (0.6 + 0.3 * Math.sin(G.t * 6)) + ')'; ctx.fillRect(w.x, w.y + w.h / 2 - 2, w.w, 4);
+  if (w.active) {
+    const left = recordsLeft(), tot = fieldRecords().length;
+    rr(w.x + w.w / 2 - 210, w.y + 26, 420, 40, 20); ctx.fillStyle = 'rgba(16,40,38,0.92)'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.tealL; ctx.stroke();
+    txt('기록 문 · 기록 칩 ' + (tot - left) + '/' + tot + ' 모으면 열려요', w.x + w.w / 2, w.y + 47, 20, C.tealL, 'center', { weight: 900 });
+  }
+  ctx.restore();
+}
 function drawWall(w) {
+  if (w.recordGate) { drawRecordGate(w); return; }
   const a = w.active ? 1 : Math.max(0, w.fade);
   if (a <= 0) return;
   const c = G.cam;
@@ -1976,6 +2075,18 @@ function drawTargetRing(g) {
 function drawOffscreenTargets() {
   if (G.mode !== 'play' || G.boss) return;
   const cam = G.cam, m = 46;
+  const wA = wallById('wA');
+  if (recordGateNeeded() && wA && !wA.active) chipTargets().forEach(t => {
+    const sx = t.x - cam.x, sy = t.y - cam.y;
+    if (sx > 0 && sx < W && sy > 0 && sy < H) return;
+    const cx = W / 2, cy = H / 2, ang = Math.atan2(sy - cy, sx - cx);
+    const k = Math.min((W / 2 - m) / Math.abs(Math.cos(ang) || 1e-6), (H / 2 - m - 40) / Math.abs(Math.sin(ang) || 1e-6));
+    ctx.save(); ctx.translate(cx + Math.cos(ang) * k, cy + Math.sin(ang) * k);
+    ctx.fillStyle = 'rgba(16,40,38,0.88)'; circle(0, 0, 26); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.tealL; ctx.stroke();
+    txt('기록', 0, 1, 13, C.tealL, 'center', { weight: 900 });
+    ctx.rotate(ang); ctx.fillStyle = C.tealL; ctx.beginPath(); ctx.moveTo(40, 0); ctx.lineTo(28, -10); ctx.lineTo(28, 10); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  });
   for (const g of G.gens) {
     if (!isTargetGen(g)) continue;
     const sx = g.x - cam.x, sy = g.y - 30 - cam.y;
@@ -2171,9 +2282,13 @@ function drawHUD() {
   panel(W - 60, 14, 46, 46, { fill: pb.hover ? C.mustard : 'rgba(27,24,56,0.85)', r: 12 });
   ctx.fillStyle = pb.hover ? C.ink : C.cream; ctx.fillRect(W - 46, 26, 6, 22); ctx.fillRect(W - 34, 26, 6, 22);
   if (G.settlers.length) {
-    panel(14, H - 62, 54 + G.settlers.length * 30, 48, { fill: 'rgba(27,24,56,0.8)', r: 14 });
-    txt('연대', 28, H - 38, 16, C.tealL, 'left');
-    G.settlers.forEach((s, i) => { ctx.fillStyle = s.look.suit; circle(84 + i * 30, H - 38, 11); ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.stroke(); });
+    const n = G.settlers.length, label = '동료 ' + n + '명 · 공격 +' + (n * 10) + '% · 막아 주기';
+    setFont(17, 600); const lw2 = ctx.measureText(label).width;
+    const pw2 = 30 + n * 28 + lw2 + 20;
+    const bx2 = touchUI() ? 250 : 14;
+    panel(bx2, H - 64, pw2, 50, { fill: 'rgba(27,24,56,0.85)', stroke: C.tealL, r: 14, lw: 2 });
+    G.settlers.forEach((s, i) => { ctx.fillStyle = s.look.suit; circle(bx2 + 24 + i * 28, H - 39, 11); ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.stroke(); if (!(s.guardAt > G.t)) { ctx.strokeStyle = C.tealL; ctx.lineWidth = 2.5; circle(bx2 + 24 + i * 28, H - 39, 15); ctx.stroke(); } });
+    txt(label, bx2 + 18 + n * 28, H - 39, 17, C.tealL, 'left', { weight: 600 });
   }
   let obj = '';
   if (G.boss && !G.boss.dead) obj = '';
@@ -2182,9 +2297,11 @@ function drawHUD() {
     const w = wallById(G.zones[G.zoneIdx].exit);
     const left = w.gens.filter(id => G.gens.find(g => g.id === id).alive).length;
     const named = w.gens.map(id => G.gens.find(g => g.id === id)).find(g => g.alive && g.name);
-    obj = named && left === 1 ? '지금 할 일 ▶ ' + named.name + ' 부수기' : left ? '지금 할 일 ▶ 발생기 ' + left + '개 부수기' : '지금 할 일 ▶ 위로 나아가기 ▲';
-  } else if (!G.boss) obj = '지금 할 일 ▶ 보스 구역 문으로 들어가기 ▲';
-  if (obj && G.mode !== 'brief' && !coachVisible()) { setFont(19, 600); const tw = ctx.measureText(obj).width + 44; panel(W / 2 - tw / 2, 14, tw, 40, { fill: 'rgba(27,24,56,0.9)', stroke: C.mustard, r: 20, lw: 2.5 }); txt(obj, W / 2, 35, 19, C.amberL, 'center', { weight: 600 }); }
+    const chipsObj = '지금 할 일 ▶ 기록 칩 모두 모으기 (' + (fieldRecords().length - recordsLeft()) + '/' + fieldRecords().length + ')';
+    const z0 = G.zones[G.zoneIdx], chipsHere = recordGateNeeded() && chipTargets().some(c => (c.y >= z0.y0 && c.y < z0.y1) || (zoneIndexAt(c.y) < G.zoneIdx && !G.restricted));
+    obj = named && left === 1 ? '지금 할 일 ▶ ' + named.name + ' 부수기' : left ? '지금 할 일 ▶ 발생기 ' + left + '개 부수기' : ((chipsHere || (G.zoneIdx === G.zones.length - 1 && recordGateNeeded())) ? chipsObj : '지금 할 일 ▶ 위로 나아가기 ▲');
+  } else if (!G.boss) obj = recordGateNeeded() ? '지금 할 일 ▶ 기록 칩 모두 모으기 (' + (fieldRecords().length - recordsLeft()) + '/' + fieldRecords().length + ')' : '지금 할 일 ▶ 보스 구역 문으로 들어가기 ▲';
+  if (obj && G.mode !== 'brief' && !coachVisible()) { setFont(26, 900); const tw = ctx.measureText(obj).width + 64; panel(W / 2 - tw / 2, 10, tw, 56, { fill: 'rgba(27,24,56,0.95)', stroke: C.mustard, r: 28, lw: 4 }); txt(obj, W / 2, 39, 26, C.amberL, 'center', { weight: 900 }); }
   if (!G.boss && G.mode !== 'brief') drawMissionList();
   if (G.boss && !G.boss.dead) drawBossBar(G.boss);
   drawControls();
@@ -2217,6 +2334,13 @@ function drawBossBar(b) {
 function drawControls() {
   if (G.mode !== 'play') return;
   const P = G.P, sk = G.skills[G.skillIdx];
+  const crowd = G.eB.filter(b => dist(b.x, b.y, P.x, P.y) < 180).length;
+  const hint = G.boss && !G.boss.dead && G.skillCd <= 0 && crowd >= 5 && !P.dead;
+  if (hint) {
+    const hx = touchUI() ? W - 270 : W - 64, hy = touchUI() ? H - 86 : H - 52;
+    ctx.strokeStyle = 'rgba(159,245,234,' + (0.5 + 0.5 * Math.sin(G.t * 12)) + ')'; ctx.lineWidth = 6; circle(hx, hy, (touchUI() ? 66 : 46) + Math.sin(G.t * 12) * 4); ctx.stroke();
+    txt(touchUI() ? "'파동' 버튼으로 탄 지우기!" : 'E: 공명 파동으로 탄 지우기!', hx - (touchUI() ? 0 : 20), hy - (touchUI() ? 84 : 66), 22, C.tealL, touchUI() ? 'center' : 'right', { weight: 900, stroke: C.ink, sw: 5 });
+  }
   const dashR = P.dashCd > 0 ? P.dashCd / G.st.dashCd : 0, skR = G.skillCd > 0 ? G.skillCd / SKILLS[sk].cd : 0;
   if (touchUI()) {
     if (joy) {
@@ -2264,10 +2388,10 @@ function drawBanner(b) {
   ctx.restore();
   if (b.sub) {
     ctx.save(); ctx.globalAlpha = Math.max(0, a);
-    const lines = wrap(b.sub, 820, 20, 700);
-    const h = lines.length * 28 + 18;
-    panel(W / 2 - 440, y + 34, 880, h, { fill: 'rgba(27,24,56,0.85)', r: 14, lw: 2 });
-    lines.forEach((l, i) => txt(l, W / 2, y + 34 + 23 + i * 28, 20, C.cream, 'center', { weight: 700 }));
+    const lines = wrap(b.sub, 900, 25, 600);
+    const h = lines.length * 34 + 22;
+    panel(W / 2 - 480, y + 34, 960, h, { fill: 'rgba(27,24,56,0.92)', r: 16, lw: 2 });
+    lines.forEach((l, i) => txt(l, W / 2, y + 34 + 28 + i * 34, 25, C.cream, 'center', { weight: 600 }));
     ctx.restore();
   }
 }
@@ -2317,14 +2441,14 @@ function drawCoachBar() {
 function drawMissionList() {
   const mainWalls = (G.L.missionWalls || ['wC', 'wB', 'wA']).map(wallById).filter(Boolean);
   const wallsDone = mainWalls.filter(w => !w.active).length;
-  const recs = D.records.filter(r => r.stage === G.def.id), got = recs.filter(r => save.records[r.id]).length;
+  const recs = fieldRecords(), got = recs.filter(r => save.records[r.id]).length;
   const rounds = G.def.boss.rounds.length;
   const items = [
     { t: G.L.restrict ? '레이저 벽·분리선 끄기' : '레이저 벽 끄기', v: wallsDone + '/' + mainWalls.length, done: wallsDone === mainWalls.length },
-    { t: '보스 「' + G.def.boss.name + '」 반박', v: '0/' + rounds, done: false },
     { t: '정착민 구하기', v: G.stats.rescued + '/' + G.caps.length, done: G.stats.rescued === G.caps.length, opt: true },
-    { t: '기록 칩 모으기', v: got + '/' + recs.length, done: got === recs.length, opt: true }
+    { t: '기록 칩 모두 모으기', v: got + '/' + recs.length, done: got === recs.length }
   ];
+  items.push({ t: '보스 「' + G.def.boss.name + '」 반박', v: '0/' + rounds, done: false });
   const cur = items.findIndex(i => !i.done && !i.opt);
   const sig = items.map(i => i.v).join('|');
   if (G.missionSig !== sig) { G.missionSig = sig; G.missionAt = G.t; }
@@ -2362,8 +2486,8 @@ function drawBrief() {
     { k: 'drone', n: '오더의 드론', t: '하얀 공 모양 기계. 주황 탄을 피하세요' },
     { k: 'gen', n: '발생기', t: '부수면 레이저 벽이 꺼져요 (노란 화살표)' },
     { k: 'wall', n: '레이저 벽', t: '길을 막는 주황 빛. 닿으면 아파요' },
-    { k: 'chip', n: '기록 칩', t: '주우면 실제 지구 역사 기록이 떠요' },
-    { k: 'cap', n: '갇힌 정착민', t: '캡슐에 닿으면 구출, 함께 싸워요' }
+    { k: 'chip', n: '기록 칩', t: '실제 지구 역사 기록. 모두 모아야 보스 문이 열려요' },
+    { k: 'cap', n: '갇힌 정착민', t: '구하면 동료가 되어 같이 쏘고 막아 줘요' }
   ];
   items.forEach((it, i) => {
     const col = i % 3, row = Math.floor(i / 3), x = 90 + col * 372, y = 244 + row * 118, w = 356, h = 106;
@@ -2372,14 +2496,15 @@ function drawBrief() {
     txt(it.n, x + 106, y + 32, 22, C.cream, 'left', { weight: 900 });
     para(it.t, x + 106, y + 62, w - 118, 16, '#d8d1fa', 22, { weight: 600 });
   });
-  const flow = G.L.restrict ? ['발생기 부수기', '분리선 끄기', '보스를 증거로 반박'] : ['발생기 부수기', '레이저 벽 통과', '보스를 증거로 반박'];
+  const flow = G.L.restrict ? ['발생기 부수기', '분리선 끄기', '기록 칩 모두 모으기', '보스를 증거로 반박'] : ['발생기 부수기', '레이저 벽 통과', '기록 칩 모두 모으기', '보스를 증거로 반박'];
+  const fw = 248, fg = 34, fx0 = W / 2 - (flow.length * fw + (flow.length - 1) * fg) / 2;
   flow.forEach((f, i) => {
-    const x = 170 + i * 330, y = 506;
-    rr(x, y - 22, 280, 44, 22); ctx.fillStyle = i === 2 ? 'rgba(224,87,62,0.35)' : 'rgba(247,197,72,0.18)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = i === 2 ? C.red : C.mustard; ctx.stroke();
-    txt((i + 1) + '. ' + f, x + 140, y, 20, C.cream, 'center', { weight: 600 });
-    if (i < 2) txt('▶', x + 305, y, 20, C.mustard, 'center');
+    const x = fx0 + i * (fw + fg), y = 506, last = i === flow.length - 1;
+    rr(x, y - 22, fw, 44, 22); ctx.fillStyle = last ? 'rgba(224,87,62,0.35)' : 'rgba(247,197,72,0.18)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = last ? C.red : C.mustard; ctx.stroke();
+    txt((i + 1) + '. ' + f, x + fw / 2, y, 19, C.cream, 'center', { weight: 600 });
+    if (!last) txt('▶', x + fw + fg / 2, y, 18, C.mustard, 'center');
   });
-  const ctrl = touchUI() ? '이동: 왼쪽 화면 끌기   ·   공격: 자동   ·   대시·기술: 오른쪽 아래 버튼' : '이동: WASD·방향키   ·   공격: 자동   ·   대시: Shift·Space   ·   기술: E   ·   멈춤: Esc';
+  const ctrl = touchUI() ? '이동: 왼쪽 화면 끌기  ·  공격: 자동  ·  대시(빨리 피하기)·공명 파동(탄 지우기): 오른쪽 아래 버튼' : '이동: WASD·방향키  ·  공격: 자동  ·  대시(빨리 피하기): Shift·Space  ·  공명 파동(탄 지우기): E';
   txt(ctrl, W / 2, 562, 18, '#cfc8f2', 'center', { weight: 600 });
   button(W / 2 - 140, 592, 280, 66, '출발!', () => startPlay(), { size: 30 });
 }
@@ -2408,9 +2533,9 @@ function drawBossIntro() {
   txt('BOSS · 오더의 하위 모듈', 90, 250, 26, C.amberL, 'left', { weight: 900, stroke: C.ink, sw: 6 });
   txt(b.def.name, 90, 310, 64, C.cream, 'left', { weight: 900, stroke: C.ink, sw: 10 });
   para('「' + b.def.intro + '」', 92, 390, 560, 28, C.cream, 40, { stroke: C.ink, sw: 6 });
-  ['① 보스가 주장을 외치면 방어막이 생겨요', '② 주장이 틀렸다는 증거 구슬에 몸으로 닿아요', '③ 방어막이 깨지면 공격! (틀린 구슬은 반격)'].forEach((l, i) =>
-    txt(l, 92, 444 + i * 36, 22, C.amberL, 'left', { stroke: C.ink, sw: 5 }));
-  if (t > 0.7) txt('클릭 · Enter: 시작', 92, 568, 17, C.cream, 'left', { stroke: C.ink, sw: 4 });
+  ['① 보스가 주장을 외치면 방어막이 생겨요', '② 주장이 틀렸다는 증거 구슬에 몸으로 닿아요', '③ 방어막이 깨지면 공격! (틀린 구슬은 반격)', '④ 탄이 많으면 ' + (touchUI() ? "'파동' 버튼" : 'E') + '(공명 파동)로 지워요'].forEach((l, i) =>
+    txt(l, 92, 444 + i * 34, 22, C.amberL, 'left', { stroke: C.ink, sw: 5 }));
+  if (t > 0.7) txt('클릭 · Enter: 시작', 92, 590, 17, C.cream, 'left', { stroke: C.ink, sw: 4 });
   ctx.restore();
 }
 function recordLayout(r, ds) {
@@ -2426,7 +2551,8 @@ function drawRecordCard() {
   let Lo = recordLayout(r, 28);
   if (Lo.textH > 520) Lo = recordLayout(r, 25);
   if (Lo.textH > 520) Lo = recordLayout(r, 22);
-  const pw = 490, ph = 368;
+  // 사진 높이를 오른쪽 글 높이에 맞춘다
+  const pw = 490, ph = clamp(Lo.textH, 320, 520);
   const contentH = Math.max(ph, Lo.textH);
   const x = 70, w = W - 140, h = Math.min(H - 16, 78 + contentH + 112), y = (H - h) / 2;
   const pop = Math.min(1, G.recT * 6);
@@ -2511,7 +2637,7 @@ function drawChange() {
   ctx.save(); ctx.globalAlpha = a;
   panel(40, 24, W - 80, H - 48, { fill: 'rgba(22,19,50,0.97)', stroke: C.mustard, r: 26, lw: 4 });
   txt(ch.title, W / 2, 78, 44, C.mustard, 'center', { weight: 900, stroke: C.ink, sw: 7 });
-  txt('지구에서 사람들의 노력이 세상을 바꾼 것처럼, 화성도 바뀌었어요', W / 2, 124, 22, C.cream, 'center', { weight: 600 });
+  txt('지구에서 사람들의 노력이 세상을 바꾼 것처럼, 화성도 바뀌었어요', W / 2, 126, 26, C.cream, 'center', { weight: 600 });
   // 왼쪽: 지구 (실제 기록)
   const lx = 80, ly = 156, lw = 540;
   rr(lx, ly, 200, 40, 20); ctx.fillStyle = C.tealL; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
@@ -2520,54 +2646,54 @@ function drawChange() {
     const show = Math.min(1, Math.max(0, (t - 0.5 - i * 0.5) * 3));
     if (show <= 0) return;
     ctx.globalAlpha = a * show;
-    const y = ly + 66 + i * 104;
-    rr(lx, y, lw, 90, 16); ctx.fillStyle = 'rgba(44,200,182,0.12)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(159,245,234,0.6)'; ctx.stroke();
-    txt(e[0], lx + 22, y + 45, 34, C.tealL, 'left', { weight: 900 });
-    para(e[1], lx + 126, y + 32, lw - 146, 23, C.cream, 30, { weight: 600 });
+    const y = ly + 60 + i * 120;
+    rr(lx, y, lw, 108, 16); ctx.fillStyle = 'rgba(44,200,182,0.12)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(159,245,234,0.6)'; ctx.stroke();
+    txt(e[0], lx + 20, y + 54, 40, C.tealL, 'left', { weight: 900 });
+    const el = wrap(e[1], lw - 150, 28, 600);
+    el.forEach((l, k) => txt(l, lx + 134, y + 54 + (k - (el.length - 1) / 2) * 36, 28, C.cream, 'left', { weight: 600 }));
   });
   ctx.globalAlpha = a;
   // 오른쪽: 화성 (우리 이야기)
   const rx = 660, rw = W - 80 - rx + 40 - 40;
   rr(rx, ly, 220, 40, 20); ctx.fillStyle = C.orange; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
   txt('화성 · 우리 정착촌', rx + 110, ly + 20, 20, C.ink, 'center', { weight: 900 });
-  const img = IMG[ch.img], iy = ly + 60, ih = 276;
+  const img = IMG[ch.img], iy = ly + 60, ih = 250;
   const show2 = Math.min(1, Math.max(0, (t - 1.6) * 2));
   ctx.globalAlpha = a * show2;
   if (img) { ctx.save(); rr(rx, iy, rw, ih, 16); ctx.clip(); drawCover(img, rx, iy, rw, ih); ctx.restore(); rr(rx, iy, rw, ih, 16); ctx.lineWidth = 3; ctx.strokeStyle = C.cream; ctx.stroke(); }
   else { rr(rx, iy, rw, ih, 16); ctx.fillStyle = '#2e2b52'; ctx.fill(); txt('모두의 길', rx + rw / 2, iy + ih / 2, 40, C.tealL, 'center', { weight: 900 }); }
-  para(ch.mars, rx, iy + ih + 30, rw, 22, C.cream, 30, { weight: 600 });
+  para(ch.mars, rx, iy + ih + 32, rw, 27, C.cream, 36, { weight: 600 });
   ctx.globalAlpha = a;
-  txt('▶', 640, ly + 210, 40, C.mustard, 'center', { weight: 900 });
+  txt('▶', 640, ly + 200, 40, C.mustard, 'center', { weight: 900 });
   ctx.restore();
-  if (G.bossRec && t > 1.2) txt((G.bossRecFresh ? '새 기록 획득: ' : '기록: ') + G.bossRec.year + ' ' + G.bossRec.title + ' (기록 보관소에서 볼 수 있어요)', W / 2, H - 112, 18, C.tealL, 'center', { weight: 600 });
+  if (G.bossRec && t > 1.2) txt((G.bossRecFresh ? '새 기록 획득: ' : '기록: ') + G.bossRec.year + ' ' + G.bossRec.title + ' (기록 보관소에서 볼 수 있어요)', W / 2, H - 112, 20, C.tealL, 'center', { weight: 600 });
   if (t > 2) button(W / 2 - 140, H - 96, 280, 60, '다음 ▶', () => { G.clearStep = 1; G.clearT = 0; ui.focus = 0; }, { size: 26 });
 }
 function drawClear() {
   if (G.clearStep === 0) { drawChange(); return; }
   const t = G.clearT, d = G.def;
-  modalStart(); dim(Math.min(0.78, t));
+  modalStart(); dim(Math.min(0.8, t));
   const a = Math.min(1, t * 2);
-  txt('보스 격파!', W / 2, 92, 56, C.mustard, 'center', { weight: 900, stroke: C.ink, sw: 10 });
-  if (t > 0.4 && d.card) {
-    const s = Math.min(1, (t - 0.4) * 3);
-    ctx.save(); ctx.translate(W / 2, 245); ctx.scale(s, 1);
-    drawInstitutionCard(-230, -90, 460, 180, d.card, a);
-    ctx.restore();
-    txt('제도 카드를 얻었어요!', W / 2, 365, 24, C.cream, 'center');
+  txt('보스 격파!', W / 2, 62, 50, C.mustard, 'center', { weight: 900, stroke: C.ink, sw: 9 });
+  if (d.card) {
+    const s = Math.min(1, Math.max(0.02, (t - 0.2) * 3));
+    ctx.save(); ctx.translate(360, 0); ctx.scale(s, 1); drawCardArt(0, 104, 340, d.card, a); ctx.restore();
   }
-  if (t > 0.9) {
-    txt('기술: ' + D.skills[d.skill].name + '   ·   운동 배지: ' + d.badge, W / 2, 408, 22, C.tealL, 'center');
-    txt('문제 → 사람들의 행동 → 제도', W / 2, 446, 19, '#cfc8f2', 'center', { weight: 700 });
+  if (t > 0.6) {
+    const x = 600;
+    txt('제도 카드를 얻었어요!', x, 160, 38, C.cream, 'left', { weight: 900 });
+    para('이 카드는 마지막에 만드는 「정착촌 헌장」의 제' + d.card.article + '조가 돼요. 다섯 운동의 제도 카드를 모아 헌장을 완성해요.', x, 220, 600, 25, '#e6e0ff', 36, { weight: 600 });
+    txt('문제 → 사람들의 행동 → 제도', x, 340, 26, C.mustard, 'left', { weight: 900 });
+    txt('기술 획득: ' + D.skills[d.skill].name, x, 400, 26, C.tealL, 'left', { weight: 600 });
+    txt('운동 배지: ' + d.badge, x, 440, 26, C.amberL, 'left', { weight: 600 });
   }
-  if (t > 1.2) button(W / 2 - 150, 490, 300, 60, '결과 보기', () => { const r = resultData(); go(() => ResultScene(r)); });
-  if (G.toasts.length) drawToast(G.toasts[0]);
+  if (t > 1.2) button(640, 520, 320, 64, '결과 보기', () => { const r = resultData(); go(() => ResultScene(r)); }, { size: 28 });
 }
 function drawGameOver() {
   modalStart(); dim(0.78);
   txt('목숨을 모두 썼어요', W / 2, 220, 48, C.cream, 'center', { weight: 900, stroke: C.ink, sw: 9 });
-  txt('모은 기록은 저장되어 있어요. 다시 도전해 볼까요?', W / 2, 290, 22, '#d8d1fa', 'center', { weight: 700 });
-  button(W / 2 - 300, 360, 280, 60, '다시 도전', () => go(() => StageScene(G.def.id)));
-  button(W / 2 + 20, 360, 280, 60, '스테이지 고르기', () => go(() => SelectScene()), { fill: '#d9d2f0' });
+  txt('스테이지를 처음부터 다시 해요. 모은 기록 칩은 그대로 남아요.', W / 2, 290, 24, '#d8d1fa', 'center', { weight: 600 });
+  button(W / 2 - 180, 360, 360, 66, '처음부터 다시 시작', () => go(() => StageScene(G.def.id)), { size: 28 });
 }
 
 /* ---------------- 메인 루프 ---------------- */
@@ -2609,6 +2735,7 @@ if (DEBUG) {
     killGens(ids) { G.gens.forEach(g => { if (!ids || ids.includes(g.id)) damageGen(g, 9999); }); },
     bossHp(f) { const b = G.boss; b.hp = b.maxHp * f; },
     down() { playerDown(); },
+    guide() { const g = guideGoal(); return g ? { x: g.x, y: g.y } : null; },
     reset() { save = defaultSave(); writeSave(); }
   };
 }
