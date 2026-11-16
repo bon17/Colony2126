@@ -1972,15 +1972,18 @@ function updateRace(dt) {
   if (R.grace > 0) R.grace -= dt; else R.camY -= R.v * dt;
   R.camY = Math.min(R.camY, P.y - H * 0.62);        // 앞서 달리면 화면도 따라간다
   R.camY = Math.max(R.camY, rz.minCam);
-  // 뒤처지면 다치고, 화면 아래쪽 차단막 너머로 끌려 올라간다
+  // 뒤처지면 다친다. 차단막을 넘겨 주지는 않는다: 막힌 차단막 아래, 틈 바로 앞으로 옮기고 화면을 잠깐 멈춘다
   const bottom = R.camY + H - 46;
   if (P.y > bottom && !P.dead) {
     hurtPlayer(12, P.x, P.y + 60);
     if (!P.dead) {
+      const gp = nextGap();
       let ny = R.camY + H * 0.64;
-      for (const w of G.walls) if (w.active && w.barrier && w.y > R.camY + H * 0.3 && w.y < bottom + 30 && w.y - 60 < ny) ny = w.y - 60;
+      if (gp && gp.y + 70 > ny) { ny = gp.y + 70; P.x = gp.x; }
       P.y = ny; P.kx = P.ky = 0; P.inv = Math.max(P.inv, 1.4);
+      R.camY = Math.max(rz.minCam, ny - H * 0.62); R.grace = 1.6;
       addText(P.x, P.y - 64, '뒤처졌어요!', C.bad, 22); burst(P.x, P.y, C.bad, 12, 200);
+      if (gp) addText(P.x, P.y - 96, '틈으로 지나가세요 ▲', C.tealL, 19);
     }
   }
   // 지나온 차단막 바로 위가 다시 시작하는 자리
