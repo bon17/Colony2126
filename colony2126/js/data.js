@@ -15,6 +15,8 @@ window.COLONY_DATA = {
   recordReadSeconds: 7,
   /* 쓰러진 뒤 「다시 시작」을 누를 수 있을 때까지 기다리는 시간(초) */
   reviveSeconds: 10,
+  /* 스테이지 시작 전 「시작 전에 알아 두기」를 읽을 시간(초): 지나야 「게임 시작하기!」가 켜진다 */
+  rulesReadSeconds: 10,
   subtitle: '민주주의와 인권의 확산',
 
   /* 오프닝 3컷 (그림: img/op1~op3). {중괄호} 안 글자는 노란색으로 강조된다.
