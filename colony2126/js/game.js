@@ -928,6 +928,7 @@ function updateTips(dt) {
   const P = G.P;
   if (G.tip) { G.tip.t += dt; if (G.tip.t > G.tip.dur) G.tip = null; }
   if (P.dead) return;
+  if (G.gems.some(g => dist(g.x, g.y, P.x, P.y) < 300)) showTip('gem', '청록 조각은 경험치예요', '드론을 물리치면 떨어져요. 가까이 가면 저절로 모이고, 모으면 레벨 업!');
   if (G.chips.some(c => !c.got && dist(c.x, c.y, P.x, P.y) < 280)) showTip('chip', '기록 칩이에요', '주우면 실제 지구 역사 기록이 떠요. 보스와 싸울 때 증거가 돼요');
   if (G.caps.some(c => !c.freed && dist(c.x, c.y, P.x, P.y) < 320)) showTip('cap', '갇힌 정착민이에요', '캡슐에 몸으로 닿으면 구출! 동료가 되어 함께 싸워요');
   if (G.zoneIdx === 1 && wallById('div') && wallById('div').active) showTip('div', '분리선!', '"화성 태생"과 "지구 출신"으로 나눈 벽이에요. 바로 앞 발생기를 부수면 꺼져요', 6);
