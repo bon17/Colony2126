@@ -828,59 +828,68 @@ function computeStats(up) {
 
 /* ----- 1스테이지 지도 ----- */
 function layoutStage1() {
+  // 분리선(x=1000)이 A·B 구역을 가른다: 왼쪽 = 넓고 평화로운 '화성 태생' 구역, 오른쪽 = 좁고 어두운 '지구 출신' 구역(주인공 출발)
+  const DX = 1000, EX0 = DX + 16, EX1 = 1530;
   const L = {
-    w: 1600, h: 3800, start: { x: 800, y: 3680 },
+    w: 1600, h: 3800, start: { x: 1270, y: 3680 },
     arena: { x: 160, y: 0, w: 1280, h: 720 },
     solids: [ { x: 0, y: 0, w: 160, h: 800 }, { x: 1440, y: 0, w: 160, h: 800 }, { x: 160, y: 720, w: 400, h: 80 }, { x: 1040, y: 720, w: 400, h: 80 } ],
-    walls: [], gens: [], zones: [], chips: [], caps: []
+    walls: [], gens: [], zones: [], chips: [], caps: [],
+    restrict: { wall: 'div', lane: { x0: EX0, x1: EX1, y0: 1812, y1: 3800 } },
+    missionWalls: ['wC', 'div', 'wA']
   };
   const wall = (id, x, y, w, h, gens, o) => L.walls.push(Object.assign({ id, x, y, w, h, gens, active: true, fade: 1 }, o || {}));
-  const gen = (id, x, y, hp) => L.gens.push({ id, x, y, r: 32, hp: hp || 140, maxHp: hp || 140, alive: true, hitT: 0 });
-  wall('wC', 0, 2796, 1600, 16, ['g1a', 'g1b']);
-  gen('g1a', 380, 2930, 90); gen('g1b', 1220, 2930, 90);
-  wall('wB', 0, 1796, 1600, 16, ['g2a', 'g2b', 'g2d']);
-  wall('div', 792, 1812, 16, 838, ['g2d'], { divider: true });
-  gen('g2d', 800, 2725, 160); gen('g2a', 300, 1930); gen('g2b', 1300, 1930);
+  const gen = (id, x, y, hp, o) => L.gens.push(Object.assign({ id, x, y, r: 32, hp: hp || 140, maxHp: hp || 140, alive: true, hitT: 0 }, o || {}));
+  wall('wC', EX0, 2796, EX1 - EX0, 16, ['g1a', 'g1b']);
+  gen('g1a', 1110, 2935, 90); gen('g1b', 1430, 2935, 90);
+  wall('div', DX, 1812, 16, 1988, ['g2d'], { divider: true });
+  wall('wB', EX0, 1796, EX1 - EX0, 16, ['g2d']);
+  gen('g2d', 1270, 1950, 320, { name: '분리선 발생기', big: true });
   wall('wA', 0, 796, 1600, 16, ['g3a', 'g3b']);
   gen('g3a', 330, 935, 190); gen('g3b', 1270, 935, 190);
   wall('gate', 560, 712, 480, 16, [], { active: false, fade: 0, gate: true });
   L.zones = [
-    { y0: 2812, y1: 3800, exit: 'wC', check: { x: 800, y: 3680 }, label: 'A 구역 · 정착민 등록소',
-      pool: ['drone', 'drone', 'chaser'], max: 5, every: 3.6,
-      initial: [['drone', 520, 3300], ['drone', 1080, 3260], ['drone', 800, 3060], ['chaser', 300, 3420]] },
-    { y0: 1812, y1: 2796, exit: 'wB', check: { x: 640, y: 2760 }, label: 'B 구역 · 생활 구역',
-      pool: ['drone', 'chaser', 'drone'], max: 7, every: 3.0,
-      initial: [['turret', 300, 2110], ['turret', 1300, 2110], ['drone', 450, 2400], ['drone', 1150, 2350, 'r1_beach'], ['chaser', 650, 2200]] },
+    { y0: 2812, y1: 3800, exit: 'wC', check: { x: 1270, y: 3680 }, label: 'A 구역 · 지구 출신 숙소', xr: [EX0 + 40, EX1 - 40],
+      pool: ['drone', 'drone', 'chaser'], max: 4, every: 4.0,
+      initial: [['drone', 1150, 3280], ['drone', 1420, 3120], ['drone', 1270, 3010], ['chaser', 1450, 3380]] },
+    { y0: 1812, y1: 2796, exit: 'wB', check: { x: 1270, y: 2760 }, label: 'B 구역 · 검문소', xr: [EX0 + 40, EX1 - 40],
+      pool: ['drone', 'chaser', 'drone'], max: 6, every: 3.2,
+      initial: [['turret', 1080, 2060], ['turret', 1460, 2060], ['drone', 1150, 2460], ['drone', 1400, 2330, 'r1_beach'], ['chaser', 1270, 2240]] },
     { y0: 812, y1: 1796, exit: 'wA', check: { x: 800, y: 1740 }, label: 'C 구역 · 관리 구역',
       pool: ['drone', 'chaser', 'guard', 'drone'], max: 8, every: 2.8,
       initial: [['turret', 210, 1060], ['turret', 1390, 1060], ['guard', 800, 1150, 'r1_nobel'], ['drone', 500, 1400], ['drone', 1100, 1350], ['chaser', 800, 1520]] }
   ];
-  L.chips = [ ['r1_sign', 800, 3470], ['r1_king', 1370, 3250], ['r1_civil', 170, 2450], ['r1_vote', 1430, 2400], ['r1_apartheid', 230, 1620], ['r1_robben', 1370, 1580] ]
+  // 기록 칩: 지구 출신 구역 2개, 화성 태생 구역 2개(분리선이 꺼져야 갈 수 있다), C 구역 2개
+  L.chips = [ ['r1_sign', 1270, 3470], ['r1_king', 1460, 3080], ['r1_civil', 520, 2620], ['r1_vote', 300, 3250], ['r1_apartheid', 230, 1620], ['r1_robben', 1370, 1580] ]
     .map(c => ({ id: c[0], x: c[1], y: c[2], t: Math.random() * 5, got: false }));
-  L.caps = [ [430, 2080, 0], [1170, 2080, 1], [800, 1300, 2] ].map(c => ({ x: c[0], y: c[1], look: LOOKS[c[2]], freed: false, t: Math.random() * 5 }));
+  L.caps = [ [1440, 3440, 0], [1100, 2380, 1], [800, 1300, 2] ].map(c => ({ x: c[0], y: c[1], look: LOOKS[c[2]], freed: false, t: Math.random() * 5 }));
   L.bossChip = 'r1_1994';
-  [[560, 3560], [1040, 3380], [240, 3150], [1320, 3600], [560, 2380], [1040, 2380], [150, 2700], [1450, 2700], [520, 1200], [1080, 1200], [620, 1610], [980, 1610]]
+  [[1110, 3240], [1450, 2620], [1110, 2200], [520, 1200], [1080, 1200], [620, 1610], [980, 1610]]
     .forEach(c => L.solids.push({ x: c[0] - 28, y: c[1] - 28, w: 56, h: 56, crate: true }));
   // 돔 가장자리(바깥은 우주): 걸어 나갈 수 없다
   L.solids.push({ x: 0, y: 800, w: 70, h: 3000, space: true }, { x: 1530, y: 800, w: 70, h: 3000, space: true });
-  // 금속 길: 가운데 큰길, 구역마다 발생기 줄, 출발 광장
-  L.pads = [ { x: 660, y: 812, w: 280, h: 2988 }, { x: 200, y: 2858, w: 1200, h: 150 }, { x: 200, y: 1858, w: 1200, h: 150 }, { x: 200, y: 862, w: 1200, h: 150 },
-             { x: 540, y: 3560, w: 520, h: 240 }, { x: 360, y: 2010, w: 140, h: 140 }, { x: 1100, y: 2010, w: 140, h: 140 }, { x: 730, y: 1230, w: 140, h: 140 } ];
-  // 유리 거주 돔(단단함)
-  L.domes = [ { x: 250, y: 3560, r: 72 }, { x: 1380, y: 3420, r: 64 }, { x: 190, y: 2210, r: 58 }, { x: 1420, y: 1250, r: 66 }, { x: 200, y: 1330, r: 58 } ];
+  // 금속 길: 화성 태생 쪽은 넓은 길과 광장, 지구 출신 쪽은 좁은 길
+  L.pads = [ { x: 360, y: 1812, w: 300, h: 1988 }, { x: 110, y: 3480, w: 860, h: 300 }, { x: 110, y: 2280, w: 860, h: 220 },
+             { x: 1236, y: 1812, w: 68, h: 1988 }, { x: 1050, y: 2870, w: 120, h: 130 }, { x: 1370, y: 2870, w: 120, h: 130 }, { x: 1180, y: 1880, w: 180, h: 140 },
+             { x: 660, y: 812, w: 280, h: 984 }, { x: 200, y: 862, w: 1200, h: 150 }, { x: 730, y: 1230, w: 140, h: 140 } ];
+  // 유리 거주 돔: 화성 태생 쪽에만
+  L.domes = [ { x: 210, y: 3280, r: 70 }, { x: 800, y: 2950, r: 64 }, { x: 200, y: 2080, r: 58 }, { x: 790, y: 2120, r: 60 }, { x: 1420, y: 1250, r: 66 }, { x: 200, y: 1330, r: 58 } ];
   const sl = (stageById(1).slogans || []);
-  L.boards = [ { x: 370, y: 3778, text: sl[0] }, { x: 1210, y: 2700, text: sl[1] }, { x: 430, y: 1710, text: sl[2] } ].filter(b => b.text);
-  L.props = [ { kind: 'solar', x: 330, y: 3260 }, { kind: 'solar', x: 1230, y: 3130 }, { kind: 'solar', x: 1360, y: 2290 }, { kind: 'solar', x: 470, y: 1470 }, { kind: 'solar', x: 1130, y: 1470 },
-              { kind: 'antenna', x: 1210, y: 3660 }, { kind: 'antenna', x: 420, y: 2380 }, { kind: 'antenna', x: 1250, y: 1660 },
-              { kind: 'tank', x: 1080, y: 3700 }, { kind: 'tank', x: 1120, y: 3730 }, { kind: 'tank', x: 520, y: 2700 }, { kind: 'tank', x: 1000, y: 1150 } ];
-  // 바위와 크레이터: 길과 물건을 피해서 흩어 놓는다
+  L.boards = [ { x: 560, y: 3790, text: sl[0] }, { x: 1272, y: 3792, text: sl[1] }, { x: 430, y: 1710, text: sl[2] } ].filter(b => b.text);
+  L.laneSigns = [ { x: 520, y: 3420, side: 'left' }, { x: 1272, y: 3330, side: 'right' }, { x: 520, y: 2700, side: 'left' }, { x: 1272, y: 2700, side: 'right' } ];
+  L.props = [ { kind: 'solar', x: 820, y: 3640 }, { kind: 'solar', x: 820, y: 3340 }, { kind: 'solar', x: 470, y: 1470 }, { kind: 'solar', x: 1130, y: 1470 },
+              { kind: 'plant', x: 160, y: 3560 }, { kind: 'plant', x: 300, y: 3620 }, { kind: 'plant', x: 720, y: 3560 }, { kind: 'plant', x: 160, y: 2400 }, { kind: 'plant', x: 860, y: 2420 }, { kind: 'plant', x: 720, y: 2620 }, { kind: 'plant', x: 160, y: 2800 },
+              { kind: 'antenna', x: 300, y: 2950 }, { kind: 'antenna', x: 1250, y: 1660 },
+              { kind: 'tank', x: 1480, y: 3700 }, { kind: 'tank', x: 1060, y: 3560 }, { kind: 'tank', x: 1490, y: 2450 }, { kind: 'tank', x: 1000, y: 1150 } ];
+  // 화성 태생 주민: 자기 구역을 자유롭게 걸어 다닌다
+  L.npcs = [ [300, 3560, 3], [620, 3150, 4], [450, 2780, 0], [700, 2420, 2], [280, 2560, 1] ].map(n => ({ x: n[0], y: n[1], tx: n[0], ty: n[1], look: LOOKS[n[2]], t: Math.random() * 5, wait: Math.random() * 2, moving: false }));
   L.rocks = [];
   let seed = 5; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 140 && L.rocks.length < 60; i++) {
+  for (let i = 0; i < 160 && L.rocks.length < 56; i++) {
     const x = 90 + rnd() * 1420, y = 830 + rnd() * 2950;
     if (L.pads.some(p => x > p.x - 30 && x < p.x + p.w + 30 && y > p.y - 30 && y < p.y + p.h + 30)) continue;
     if (L.domes.some(d => dist(x, y, d.x, d.y) < d.r + 50) || L.solids.some(s => !s.space && x > s.x - 40 && x < s.x + s.w + 40 && y > s.y - 40 && y < s.y + s.h + 40)) continue;
-    if (L.chips.some(c => dist(x, y, c.x, c.y) < 70) || Math.abs(y - 1804) < 40 || Math.abs(y - 2804) < 40) continue;
+    if (L.chips.some(c => dist(x, y, c.x, c.y) < 70) || Math.abs(y - 1804) < 40 || Math.abs(y - 2804) < 40 || Math.abs(x - 1008) < 40) continue;
     L.rocks.push({ x, y, kind: rnd() < 0.35 ? 'crater' : 'rock', s: 0.6 + rnd() * 0.9, a: rnd() * TAU });
   }
   return L;
@@ -900,6 +909,7 @@ const LAYOUTS_COACH = {
     const gensC = () => G.gens.filter(g => g.alive && wC().gens.includes(g.id));
     return [
       { title: '먼저 움직여 보세요', sub: () => touchUI() ? '왼쪽 화면을 손가락으로 끌면 움직여요' : 'WASD 또는 방향키로 움직여요', done: c => c.moved > 160 },
+      { title: '나는 지구 출신이에요', sub: () => '지구 출신은 이 좁은 구역에만 있어야 해요. 느리게 움직이고, 대시도 막혀 있어요', done: () => false, skipAfter: 5.5 },
       { title: '드론에게 다가가 보세요', sub: () => '하얀 공 모양 드론이 오더의 기계예요. 공격은 자동! 가까이 가면 알아서 쏴요', done: () => G.stats.kills >= 1,
         target: () => nearestOf(G.enemies.filter(e => !e.dead)), skipAfter: 15 },
       { title: '발생기를 부수세요', sub: () => '노란 화살표를 따라가요. 발생기 옆에 있으면 자동으로 공격해요', done: () => gensC().length < 2, target: () => nearestOf(gensC()) },
@@ -931,7 +941,7 @@ function updateTips(dt) {
   if (G.gems.some(g => dist(g.x, g.y, P.x, P.y) < 300)) showTip('gem', '청록 조각은 경험치예요', '드론을 물리치면 떨어져요. 가까이 가면 저절로 모이고, 모으면 레벨 업!');
   if (G.chips.some(c => !c.got && dist(c.x, c.y, P.x, P.y) < 280)) showTip('chip', '기록 칩이에요', '주우면 실제 지구 역사 기록을 보여 줘요. 보스와 싸울 때 증거가 돼요');
   if (G.caps.some(c => !c.freed && dist(c.x, c.y, P.x, P.y) < 320)) showTip('cap', '갇힌 정착민이에요', '캡슐에 몸으로 닿으면 구출! 동료가 되어 함께 싸워요');
-  if (G.zoneIdx === 1 && wallById('div') && wallById('div').active) showTip('div', '분리선!', '"화성 태생"과 "지구 출신"으로 나눈 벽이에요. 바로 앞 발생기를 부수면 꺼져요', 6);
+  if (G.zoneIdx === 1 && G.restricted) showTip('div', '분리선 발생기를 찾아요!', '이걸 부수면 분리선이 꺼지고, 지구 출신에게 걸린 제한도 풀려요', 6);
 }
 
 function newRun(stageId) {
@@ -956,6 +966,7 @@ function newRun(stageId) {
   const P = G.P;
   G.cam.x = clamp(P.x - W / 2, 0, L.w - W); G.cam.y = clamp(P.y - H / 2, 0, L.h - H);
   G.mode = 'brief'; G.briefT = 0; G.tip = null; G.tipsSeen = {};
+  G.restricted = !!L.restrict; G.npcs = L.npcs || []; G.freeT = -99;
   G.coach = LAYOUTS_COACH[stageId] && !save.cleared[stageId] ? { step: 0, moved: 0, st: 0, flash: 1, steps: LAYOUTS_COACH[stageId]() } : null;
   return G;
 }
@@ -1358,14 +1369,16 @@ function updatePlay(dt) {
     P.deadT -= dt;
     if (P.deadT <= 0) respawn();
   } else {
-    if ((hit('ShiftLeft') || hit('ShiftRight') || hit('Space') || touchAct.dash) && P.dashCd <= 0) {
+    const dashPressed = hit('ShiftLeft') || hit('ShiftRight') || hit('Space') || touchAct.dash;
+    if (dashPressed && G.restricted) { if (G.t - (G.dashWarnT || -9) > 1.2) { G.dashWarnT = G.t; addText(P.x, P.y - 64, '대시 금지 · 지구 출신', C.bad, 19); } }
+    else if (dashPressed && P.dashCd <= 0) {
       P.dashT = 0.18; P.dashCd = st.dashCd; P.dashDir = P.moving ? { x: P.last.x, y: P.last.y } : { x: Math.cos(P.aim), y: Math.sin(P.aim) };
       burst(P.x, P.y, C.tealL, 8, 160, 4);
     }
     if (hit('KeyE') || touchAct.skill) useSkill();
     if (hit('Tab')) { G.missionPinned = !G.missionPinned; if (!G.missionPinned) G.missionAt = -99; }
     if ((hit('KeyQ') || touchAct.swap) && G.skills.length > 1) { G.skillIdx = (G.skillIdx + 1) % G.skills.length; addText(P.x, P.y - 50, D.skills[G.skills[G.skillIdx]].name, C.tealL, 18); }
-    let spd = st.speed * (P.marchT > 0 ? 1.25 : 1);
+    let spd = st.speed * (P.marchT > 0 ? 1.25 : 1) * (G.restricted ? 0.72 : 1);
     let vx = mx * spd, vy = my * spd;
     if (P.dashT > 0) { P.dashT -= dt; vx = P.dashDir.x * spd * 3.2; vy = P.dashDir.y * spd * 3.2; if (Math.random() < 0.6) G.parts.push({ x: P.x, y: P.y, vx: 0, vy: 0, life: 0.25, t: 0, color: 'rgba(159,245,234,0.8)', size: 9 }); }
     vx += P.kx; vy += P.ky; P.kx *= Math.pow(0.0008, dt); P.ky *= Math.pow(0.0008, dt);
@@ -1498,7 +1511,8 @@ function updatePlay(dt) {
       z.spawnT = z.every;
       if (G.enemies.filter(e => e.zone === G.zoneIdx).length < z.max) {
         for (let k = 0; k < 14; k++) {
-          const x = rand(80, L.w - 80), y = rand(z.y0 + 60, z.y1 - 60);
+          const xr = z.xr && G.restricted ? z.xr : [80, L.w - 80];
+          const x = rand(xr[0], xr[1]), y = rand(z.y0 + 60, z.y1 - 60);
           if (dist(x, y, P.x, P.y) > 430 && !G.walls.some(w => w.active && inRectPad(x, y, w, 30)) && !G.L.solids.some(s => inRectPad(x, y, s, 30)) && !(G.L.domes || []).some(d => dist(x, y, d.x, d.y) < d.r + 30)) { spawnEnemy(pick(z.pool), x, y, G.zoneIdx); break; }
         }
       }
@@ -1506,7 +1520,7 @@ function updatePlay(dt) {
   }
   if (!G.boss && !wallById('wA').active && P.y < 690 && !P.dead) startBoss();
   if (G.boss && !G.boss.dead) updateBoss(dt);
-  updateCoach(dt); updateTips(dt);
+  updateCoach(dt); updateTips(dt); updateNpcs(dt);
   updateFx(dt);
   // 카메라
   let tx, ty;
@@ -1524,13 +1538,40 @@ function damageGen(g, dmg) {
   g.alive = false; G.shake = Math.max(G.shake, 10);
   burst(g.x, g.y - 20, C.amber, 30, 320); burst(g.x, g.y - 20, C.cream, 14, 200);
   gainXp(8); Sound.play('boom');
+  const freed = G.walls.some(w => w.active && w.divider && w.gens.every(id => !G.gens.find(x => x.id === id).alive));
   for (const w of G.walls) {
     if (!w.active || w.gate || !w.gens.length) continue;
     if (w.gens.every(id => !G.gens.find(x => x.id === id).alive)) {
       w.active = false; w.fade = 1;
-      if (w.divider) banner('분리선 해제!', '"' + G.def.signs.left + '"과 "' + G.def.signs.right + '"을 나누던 벽이 꺼졌어요', C.tealL, 3);
-      else banner('레이저 벽 해제!', w.id === 'wA' ? '앞쪽 보스 구역으로 들어가세요' : '앞으로 나아가세요', C.mustard, 2.6);
+      if (w.divider) liberate();
+      else if (!freed) banner('레이저 벽 해제!', w.id === 'wA' ? '앞쪽 보스 구역으로 들어가세요' : '앞으로 나아가세요', C.mustard, 2.6);
     }
+  }
+}
+function liberate() {
+  G.restricted = false; G.freeT = G.t;
+  banner('분리선 해제!', '이제 어디든 갈 수 있어요. 이동 제한과 대시 금지가 풀렸어요!', C.tealL, 4.5);
+  G.shake = Math.max(G.shake, 12);
+  burst(G.P.x, G.P.y, C.tealL, 30, 300);
+  const P = G.P;
+  const near = G.npcs.slice().sort((a, b) => dist(a.x, a.y, P.x, P.y) - dist(b.x, b.y, P.x, P.y));
+  near.slice(0, 2).forEach(n => { n.joined = true; G.settlers.push({ look: n.look, x: n.x, y: n.y, t: 0, fireT: 0.5, aim: 0, moving: false }); addText(n.x, n.y - 50, '함께 가요!', C.tealL, 20); });
+  G.npcs = G.npcs.filter(n => !n.joined);
+  G.npcs.forEach(n => addText(n.x, n.y - 50, '야호!', C.mustard, 18));
+}
+function updateNpcs(dt) {
+  if (G.arenaLock) return;
+  for (const n of G.npcs) {
+    n.t += dt;
+    if (n.wait > 0) { n.wait -= dt; n.moving = false; continue; }
+    const d = dist(n.x, n.y, n.tx, n.ty);
+    if (d < 6) { n.wait = rand(1, 3); n.tx = clamp(n.x + rand(-220, 220), 100, 960); n.ty = clamp(n.y + rand(-220, 220), 1880, 3760); continue; }
+    n.moving = true;
+    const ox = n.x, oy = n.y;
+    n.x += (n.tx - n.x) / d * 55 * dt; n.y += (n.ty - n.y) / d * 55 * dt;
+    n.r = 14;
+    if (moveBody(n, 0, 0, false)) { n.x = ox; n.y = oy; n.tx = n.x; n.ty = n.y; }
+    n.aim = Math.atan2(n.ty - n.y, n.tx - n.x);
   }
 }
 function updateFx(dt) {
@@ -1565,6 +1606,7 @@ function drawStage() {
   const actors = [];
   for (const e of G.enemies) if (vis(e.x, e.y, 60)) actors.push({ y: e.y, f: () => drawEnemy(e, G.t) });
   G.settlers.forEach(s => actors.push({ y: s.y, f: () => drawChibi(s.x, s.y, s.t, s.moving, s.aim, s.look, { scale: 1.1, noPack: true }) }));
+  G.npcs.forEach(n => { if (vis(n.x, n.y, 60)) actors.push({ y: n.y, f: () => drawChibi(n.x, n.y, n.t, n.moving, n.aim || 0, n.look, { scale: 1.1, noPack: true }) }); });
   if (!P.dead) actors.push({ y: P.y, f: drawPlayer });
   actors.sort((a, b) => a.y - b.y).forEach(a => a.f());
   if (G.P.marchT > 0 && !P.dead) { ctx.strokeStyle = 'rgba(159,245,234,' + (0.5 + 0.3 * Math.sin(G.t * 10)) + ')'; ctx.lineWidth = 4; circle(P.x, P.y - 4, 50); ctx.stroke(); ctx.fillStyle = 'rgba(159,245,234,0.12)'; ctx.fill(); }
@@ -1762,17 +1804,21 @@ function drawWorldDecor() {
   const L = G.L;
   for (const r of L.rocks || []) drawRock(r);
   for (const p of L.pads || []) drawPad(p);
+  if (L.restrict && G.restricted) {
+    const ln = L.restrict.lane;
+    ctx.fillStyle = 'rgba(25,10,40,0.32)'; ctx.fillRect(ln.x0, ln.y0, ln.x1 - ln.x0, ln.y1 - ln.y0);
+  }
   G.zones.forEach((z, i) => txt(['A', 'B', 'C'][i] + ' 구역', 800, z.y1 - 70, 60, 'rgba(255,244,220,0.12)', 'center', { weight: 900 }));
-  const div = wallById('div');
-  if (div) {
-    const merged = !div.active;
-    const s = G.def.signs;
-    [[400, s.left], [1200, s.right]].forEach(([x, label]) => {
-      const y = 2560;
-      ctx.save(); ctx.translate(x, y);
-      rr(-124, -36, 248, 72, 14); ctx.fillStyle = merged ? 'rgba(20,60,70,0.85)' : 'rgba(60,30,20,0.85)'; ctx.fill();
-      ctx.lineWidth = 3; ctx.strokeStyle = merged ? C.tealL : C.amber; ctx.stroke();
-      txt(merged ? s.merged : label, 0, 2, 30, merged ? C.tealL : C.amberL, 'center', { weight: 900 });
+  if (L.laneSigns) {
+    const sg = G.def.signs;
+    L.laneSigns.forEach(ls => {
+      const merged = !G.restricted;
+      const label = merged ? sg.merged : (ls.side === 'left' ? sg.left + ' 전용' : sg.right + ' 구역');
+      const good = ls.side === 'left';
+      ctx.save(); ctx.translate(ls.x, ls.y);
+      rr(-130, -34, 260, 68, 14); ctx.fillStyle = merged ? 'rgba(20,60,70,0.88)' : good ? 'rgba(30,60,50,0.88)' : 'rgba(70,25,25,0.9)'; ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = merged ? C.tealL : good ? C.good : C.bad; ctx.stroke();
+      txt(label, 0, 2, 28, merged ? C.tealL : good ? '#bff5d6' : '#ffc2b8', 'center', { weight: 900 });
       ctx.restore();
     });
   }
@@ -1821,6 +1867,12 @@ function drawProp(p) {
     ctx.fillStyle = '#d8ccb8'; ctx.beginPath(); ctx.ellipse(2, -10, 14, 8, -0.4, 0, TAU); ctx.fill();
     ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(10, -30); ctx.stroke();
     ctx.fillStyle = Math.sin(G.t * 4 + p.x) > 0 ? C.tealL : C.tealD; circle(10, -31, 4); ctx.fill(); ctx.stroke();
+  } else if (p.kind === 'plant') {
+    ctx.fillStyle = 'rgba(60,20,20,0.3)'; ellipse(4, 14, 26, 8); ctx.fill();
+    ctx.fillStyle = '#5ec27f'; circle(-9, -10, 12); ctx.fill(); ctx.stroke(); circle(9, -12, 13); ctx.fill(); ctx.stroke(); circle(0, -22, 12); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#ec6f9f'; circle(-4, -20, 3.5); ctx.fill(); circle(10, -9, 3.5); ctx.fill(); ctx.fillStyle = C.mustard; circle(-10, -8, 3); ctx.fill();
+    ctx.fillStyle = C.cream; rr(-18, -4, 36, 18, 6); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = C.teal; ctx.fillRect(-18, 2, 36, 4);
   } else if (p.kind === 'tank') {
     ctx.fillStyle = 'rgba(60,20,20,0.3)'; ellipse(4, 16, 16, 6); ctx.fill();
     ctx.fillStyle = '#e8e2d6'; rr(-12, -24, 24, 40, 10); ctx.fill(); ctx.stroke();
@@ -1890,7 +1942,7 @@ function drawGenLinks(g) {
   }
 }
 function drawGen(g) {
-  ctx.save(); ctx.translate(g.x + (g.hitT > 0 ? rand(-2, 2) : 0), g.y); ctx.scale(1.25, 1.25);
+  ctx.save(); ctx.translate(g.x + (g.hitT > 0 ? rand(-2, 2) : 0), g.y); ctx.scale(g.big ? 1.6 : 1.25, g.big ? 1.6 : 1.25);
   ctx.lineJoin = 'round'; ctx.lineWidth = 2.6; ctx.strokeStyle = C.ink;
   if (!g.alive) {
     ctx.fillStyle = '#1a1734'; ellipse(0, 10, 30, 12); ctx.fill();
@@ -1909,9 +1961,10 @@ function drawGen(g) {
   ctx.fillStyle = C.amber; rr(-28, -80, 56 * Math.max(0, g.hp / g.maxHp), 8, 4); ctx.fill();
   if (!g.icon) {
     const z = G.zones[G.zoneIdx], target = z && wallById(z.exit).gens.includes(g.id);
-    setFont(13, 600); const tw = ctx.measureText('발생기').width + 16;
+    const gname = g.name || '발생기';
+    setFont(13, 600); const tw = ctx.measureText(gname).width + 16;
     rr(-tw / 2, -102, tw, 18, 9); ctx.fillStyle = target ? C.mustard : 'rgba(27,24,56,0.85)'; ctx.fill();
-    txt('발생기', 0, -93, 13, target ? C.ink : C.cream, 'center', { weight: 600 });
+    txt(gname, 0, -93, 13, target ? C.ink : C.cream, 'center', { weight: 600 });
   }
   ctx.restore();
 }
@@ -2048,6 +2101,10 @@ function drawHUD() {
   rr(98, 74, hpw, 9, 5); ctx.fillStyle = 'rgba(10,8,30,0.8)'; ctx.fill();
   rr(98, 74, hpw * Math.min(1, G.xp / xpNeed(G.level)), 9, 5); ctx.fillStyle = C.teal; ctx.fill();
   txt('XP', 98, 93, 11, '#bdb6e6', 'left', { weight: 700 });
+  if (G.L.restrict && G.mode !== 'brief') {
+    if (G.restricted) { panel(14, 110, 340, 34, { fill: 'rgba(90,25,30,0.88)', stroke: C.bad, r: 17, lw: 2 }); txt('지구 출신 · 이동 느림 · 대시 금지', 184, 127, 16, '#ffd0c8', 'center', { weight: 600 }); }
+    else if (G.t - G.freeT < 6) { panel(14, 110, 340, 34, { fill: 'rgba(20,70,60,0.9)', stroke: C.good, r: 17, lw: 2 }); txt('제한 해제! 어디든 갈 수 있어요', 184, 127, 16, '#c8ffe4', 'center', { weight: 600 }); }
+  }
   const recs = D.records.filter(r => r.stage === G.def.id), got = recs.filter(r => save.records[r.id]).length;
   panel(W - 304, 12, 236, 70, { fill: 'rgba(27,24,56,0.85)', r: 16 });
   txt(G.def.id + ' · ' + G.def.name, W - 290, 34, 18, C.cream, 'left');
@@ -2066,7 +2123,8 @@ function drawHUD() {
   else if (G.zoneIdx >= 0) {
     const w = wallById(G.zones[G.zoneIdx].exit);
     const left = w.gens.filter(id => G.gens.find(g => g.id === id).alive).length;
-    obj = left ? '지금 할 일 ▶ 발생기 ' + left + '개 부수기' : '지금 할 일 ▶ 위로 나아가기 ▲';
+    const named = w.gens.map(id => G.gens.find(g => g.id === id)).find(g => g.alive && g.name);
+    obj = named && left === 1 ? '지금 할 일 ▶ ' + named.name + ' 부수기' : left ? '지금 할 일 ▶ 발생기 ' + left + '개 부수기' : '지금 할 일 ▶ 위로 나아가기 ▲';
   } else if (!G.boss) obj = '지금 할 일 ▶ 보스 구역 문으로 들어가기 ▲';
   if (obj && G.mode !== 'brief') { setFont(19, 600); const tw = ctx.measureText(obj).width + 44; panel(W / 2 - tw / 2, 14, tw, 40, { fill: 'rgba(27,24,56,0.9)', stroke: C.mustard, r: 20, lw: 2.5 }); txt(obj, W / 2, 35, 19, C.amberL, 'center', { weight: 600 }); }
   if (!G.boss && G.mode !== 'brief') drawMissionList();
@@ -2194,12 +2252,12 @@ function drawCoachBar() {
   ctx.restore();
 }
 function drawMissionList() {
-  const mainWalls = ['wC', 'wB', 'wA'].map(wallById).filter(Boolean);
+  const mainWalls = (G.L.missionWalls || ['wC', 'wB', 'wA']).map(wallById).filter(Boolean);
   const wallsDone = mainWalls.filter(w => !w.active).length;
   const recs = D.records.filter(r => r.stage === G.def.id), got = recs.filter(r => save.records[r.id]).length;
   const rounds = G.def.boss.rounds.length;
   const items = [
-    { t: '레이저 벽 끄기', v: wallsDone + '/' + mainWalls.length, done: wallsDone === mainWalls.length },
+    { t: G.L.restrict ? '레이저 벽·분리선 끄기' : '레이저 벽 끄기', v: wallsDone + '/' + mainWalls.length, done: wallsDone === mainWalls.length },
     { t: '보스 「' + G.def.boss.name + '」 반박', v: '0/' + rounds, done: false },
     { t: '정착민 구하기', v: G.stats.rescued + '/' + G.caps.length, done: G.stats.rescued === G.caps.length, opt: true },
     { t: '기록 칩 모으기', v: got + '/' + recs.length, done: got === recs.length, opt: true }
@@ -2251,7 +2309,7 @@ function drawBrief() {
     txt(it.n, x + 106, y + 32, 22, C.cream, 'left', { weight: 900 });
     para(it.t, x + 106, y + 62, w - 118, 16, '#d8d1fa', 22, { weight: 600 });
   });
-  const flow = ['발생기 부수기', '레이저 벽 통과', '보스를 증거로 반박'];
+  const flow = G.L.restrict ? ['발생기 부수기', '분리선 끄기', '보스를 증거로 반박'] : ['발생기 부수기', '레이저 벽 통과', '보스를 증거로 반박'];
   flow.forEach((f, i) => {
     const x = 170 + i * 330, y = 506;
     rr(x, y - 22, 280, 44, 22); ctx.fillStyle = i === 2 ? 'rgba(224,87,62,0.35)' : 'rgba(247,197,72,0.18)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = i === 2 ? C.red : C.mustard; ctx.stroke();
