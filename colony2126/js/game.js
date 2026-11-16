@@ -37,6 +37,10 @@ const ctx = canvas.getContext('2d');
 const rotateEl = document.getElementById('rotate');
 const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 let usingTouch = false;
+// 화면 터치 버튼을 늘 보이게 하는 설정 (태블릿용). 브라우저에 따로 기억한다
+let forceTouch = false;
+try { forceTouch = localStorage.getItem('colony2126.touch') === '1'; } catch (e) { /* 무시 */ }
+function setForceTouch(on) { forceTouch = on; try { localStorage.setItem('colony2126.touch', on ? '1' : '0'); } catch (e) { /* 무시 */ } }
 
 function resize() {
   const host = document.body;
@@ -138,13 +142,13 @@ canvas.addEventListener('pointerdown', e => {
   e.preventDefault();
   canvas.focus();
   const p = toGame(e);
-  usingTouch = e.pointerType === 'touch';
+  usingTouch = e.pointerType === 'touch' || e.pointerType === 'pen';
   pointer.x = p.x; pointer.y = p.y;
   for (let i = hitButtons.length - 1; i >= 0; i--) {
     const b = hitButtons[i];
     if (p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { if (b.fn) { Sound.play('ui'); b.fn(); } return; }
   }
-  if (e.pointerType === 'touch' && wantsJoystick() && p.x < W * 0.5 && !joy) {
+  if ((e.pointerType === 'touch' || e.pointerType === 'pen' || forceTouch) && wantsJoystick() && p.x < W * 0.5 && !joy) {
     joy = { id: e.pointerId, ox: p.x, oy: p.y, x: p.x, y: p.y };
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ }
     return;
@@ -154,7 +158,7 @@ canvas.addEventListener('pointerdown', e => {
 canvas.addEventListener('pointermove', e => {
   const p = toGame(e);
   if (joy && e.pointerId === joy.id) { joy.x = p.x; joy.y = p.y; return; }
-  if (e.pointerType !== 'touch') { pointer.x = p.x; pointer.y = p.y; }
+  if (e.pointerType === 'mouse') { pointer.x = p.x; pointer.y = p.y; }
 });
 const endPointer = e => { if (joy && e.pointerId === joy.id) joy = null; };
 canvas.addEventListener('pointerup', endPointer);
@@ -510,6 +514,7 @@ function TitleScene() {
       button(bx, y, 340, 60, has ? '새로 시작' : '시작하기', () => { if (has) { this.confirm = true; ui.focus = 1; } else go(() => DifficultyScene()); }); y += 74;
       button(bx, y, 340, 52, '지구 기록 보관소', () => openArchive(), { size: 21, fill: C.tealL });
       soundButton(W - 190, H - 66);
+      button(W - 380, H - 66, 176, 46, forceTouch ? '터치 버튼: 켬' : '터치 버튼: 끔', () => setForceTouch(!forceTouch), { size: 18, fill: forceTouch ? C.tealL : '#d9d2f0' });
       txt('Enter: 고르기 · 방향키: 옮기기', 24, H - 26, 15, 'rgba(255,244,220,0.75)', 'left', { weight: 600, stroke: 'rgba(20,16,50,0.7)', sw: 4 });
     }
   };
@@ -831,7 +836,7 @@ function layoutStage1() {
   // 분리선(x=1000)이 A·B 구역을 가른다: 왼쪽 = 넓고 평화로운 '화성 태생' 구역, 오른쪽 = 좁고 어두운 '지구 출신' 구역(주인공 출발)
   const DX = 1000, EX0 = DX + 16, EX1 = 1530;
   const L = {
-    w: 1600, h: 3800, start: { x: 1270, y: 3680 },
+    w: 1600, h: 3800, start: { x: 1270, y: 3590 },
     arena: { x: 160, y: 0, w: 1280, h: 720 },
     solids: [ { x: 0, y: 0, w: 160, h: 800 }, { x: 1440, y: 0, w: 160, h: 800 }, { x: 160, y: 720, w: 400, h: 80 }, { x: 1040, y: 720, w: 400, h: 80 } ],
     walls: [], gens: [], zones: [], chips: [], caps: [],
@@ -849,7 +854,7 @@ function layoutStage1() {
   gen('g3a', 330, 935, 190); gen('g3b', 1270, 935, 190);
   wall('gate', 560, 712, 480, 16, [], { active: false, fade: 0, gate: true });
   L.zones = [
-    { y0: 2812, y1: 3800, exit: 'wC', check: { x: 1270, y: 3680 }, label: 'A 구역 · 지구 출신 숙소', xr: [EX0 + 40, EX1 - 40],
+    { y0: 2812, y1: 3800, exit: 'wC', check: { x: 1270, y: 3590 }, label: 'A 구역 · 지구 출신 숙소', xr: [EX0 + 40, EX1 - 40],
       pool: ['drone', 'drone', 'chaser'], max: 4, every: 4.0,
       initial: [['drone', 1150, 3280], ['drone', 1420, 3120], ['drone', 1270, 3010], ['chaser', 1450, 3380]] },
     { y0: 1812, y1: 2796, exit: 'wB', check: { x: 1270, y: 2760 }, label: 'B 구역 · 검문소', xr: [EX0 + 40, EX1 - 40],
@@ -860,7 +865,7 @@ function layoutStage1() {
       initial: [['turret', 210, 1060], ['turret', 1390, 1060], ['guard', 800, 1150, 'r1_nobel'], ['drone', 500, 1400], ['drone', 1100, 1350], ['chaser', 800, 1520]] }
   ];
   // 기록 칩: 지구 출신 구역 2개, 화성 태생 구역 2개(분리선이 꺼져야 갈 수 있다), C 구역 2개
-  L.chips = [ ['r1_sign', 1270, 3470], ['r1_king', 1460, 3080], ['r1_civil', 520, 2620], ['r1_vote', 300, 3250], ['r1_apartheid', 230, 1620], ['r1_robben', 1370, 1580] ]
+  L.chips = [ ['r1_sign', 1270, 3200], ['r1_king', 1460, 3060], ['r1_civil', 520, 2620], ['r1_vote', 300, 3250], ['r1_apartheid', 230, 1620], ['r1_robben', 1370, 1580] ]
     .map(c => ({ id: c[0], x: c[1], y: c[2], t: Math.random() * 5, got: false }));
   L.caps = [ [1440, 3440, 0], [1100, 2380, 1], [800, 1300, 2] ].map(c => ({ x: c[0], y: c[1], look: LOOKS[c[2]], freed: false, t: Math.random() * 5 }));
   L.bossChip = 'r1_1994';
@@ -897,7 +902,7 @@ function layoutStage1() {
 const LAYOUTS = { 1: layoutStage1 };
 
 /* ----- 처음 하는 사람을 위한 단계별 안내 (1스테이지 A 구역) ----- */
-const touchUI = () => usingTouch || (isTouchDevice && !Object.keys(keys).length);
+const touchUI = () => forceTouch || usingTouch || (isTouchDevice && !Object.keys(keys).length);
 function nearestOf(list) {
   const P = G.P; let best = null, bd = 1e9;
   list.forEach(o => { const d = dist(P.x, P.y, o.x, o.y); if (d < bd) { bd = d; best = o; } });
@@ -1186,8 +1191,9 @@ function collectRecord(id) {
   else G.toasts.push({ rec, t: 0, fresh });
 }
 function openRecord() { const q = G.recQueue.shift(); G.recView = q.rec; G.recFresh = q.fresh; G.recT = 0; G.mode = 'record'; ui.focus = 0; }
+const readSec = () => (typeof D.recordReadSeconds === 'number' ? D.recordReadSeconds : 5);
 function closeRecord() {
-  if (G.recT < 0.5) return;
+  if (G.recT < readSec()) return;
   if (G.recQueue && G.recQueue.length) { openRecord(); return; }
   G.recView = null; G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 0.6);
 }
@@ -1339,7 +1345,7 @@ function updateStage(dt) {
       ['Digit1', 'Digit2', 'Digit3'].forEach((k, i) => { if (hit(k) && G.choices[i]) chooseUpgrade(G.choices[i]); });
       if (G.mode === 'levelup') menuNav();
     }
-  } else if (G.mode === 'record') { G.recT += dt; if (G.recT > 0.5) menuNav(); }
+  } else if (G.mode === 'record') { G.recT += dt; if (G.recT >= readSec()) menuNav(); }
   else if (G.mode === 'clear') { G.clearT += dt; updateFx(dt); if (G.clearT > 1.2) menuNav(); }
   else if (G.mode === 'pause' || G.mode === 'gameover') menuNav();
   touchAct.dash = touchAct.skill = touchAct.swap = false;
@@ -2126,7 +2132,7 @@ function drawHUD() {
     const named = w.gens.map(id => G.gens.find(g => g.id === id)).find(g => g.alive && g.name);
     obj = named && left === 1 ? '지금 할 일 ▶ ' + named.name + ' 부수기' : left ? '지금 할 일 ▶ 발생기 ' + left + '개 부수기' : '지금 할 일 ▶ 위로 나아가기 ▲';
   } else if (!G.boss) obj = '지금 할 일 ▶ 보스 구역 문으로 들어가기 ▲';
-  if (obj && G.mode !== 'brief') { setFont(19, 600); const tw = ctx.measureText(obj).width + 44; panel(W / 2 - tw / 2, 14, tw, 40, { fill: 'rgba(27,24,56,0.9)', stroke: C.mustard, r: 20, lw: 2.5 }); txt(obj, W / 2, 35, 19, C.amberL, 'center', { weight: 600 }); }
+  if (obj && G.mode !== 'brief' && !coachVisible()) { setFont(19, 600); const tw = ctx.measureText(obj).width + 44; panel(W / 2 - tw / 2, 14, tw, 40, { fill: 'rgba(27,24,56,0.9)', stroke: C.mustard, r: 20, lw: 2.5 }); txt(obj, W / 2, 35, 19, C.amberL, 'center', { weight: 600 }); }
   if (!G.boss && G.mode !== 'brief') drawMissionList();
   if (G.boss && !G.boss.dead) drawBossBar(G.boss);
   drawControls();
@@ -2164,27 +2170,35 @@ function drawControls() {
   if (G.mode !== 'play') return;
   const P = G.P, sk = G.skills[G.skillIdx];
   const dashR = P.dashCd > 0 ? P.dashCd / G.st.dashCd : 0, skR = G.skillCd > 0 ? G.skillCd / SKILLS[sk].cd : 0;
-  if (usingTouch || (isTouchDevice && !Object.keys(keys).length)) {
+  if (touchUI()) {
     if (joy) {
       ctx.fillStyle = 'rgba(255,244,220,0.12)'; circle(joy.ox, joy.oy, 64); ctx.fill(); ctx.strokeStyle = 'rgba(255,244,220,0.5)'; ctx.lineWidth = 3; ctx.stroke();
       const dx = joy.x - joy.ox, dy = joy.y - joy.oy, d = Math.hypot(dx, dy), m = Math.min(d, 60);
       ctx.fillStyle = 'rgba(255,244,220,0.7)'; circle(joy.ox + (d ? dx / d * m : 0), joy.oy + (d ? dy / d * m : 0), 28); ctx.fill();
-    } else { ctx.strokeStyle = 'rgba(255,244,220,0.25)'; ctx.lineWidth = 3; circle(150, H - 150, 64); ctx.stroke(); txt('이동', 150, H - 150, 18, 'rgba(255,244,220,0.4)', 'center'); }
-    touchBtn(W - 120, H - 120, 64, '대시', dashR, () => { touchAct.dash = true; });
-    touchBtn(W - 260, H - 82, 50, D.skills[sk].name.split(' ').pop(), skR, () => { touchAct.skill = true; });
-    if (G.skills.length > 1) touchBtn(W - 250, H - 190, 28, '⇄', 0, () => { touchAct.swap = true; });
+    } else {
+      ctx.fillStyle = 'rgba(27,24,56,0.45)'; circle(150, H - 150, 72); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,244,220,0.6)'; ctx.lineWidth = 3; circle(150, H - 150, 72); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,244,220,0.55)'; circle(150, H - 150, 28); ctx.fill();
+      ctx.fillStyle = 'rgba(255,244,220,0.7)';
+      [0, 1, 2, 3].forEach(k => { const a = k * Math.PI / 2; ctx.save(); ctx.translate(150 + Math.cos(a) * 52, H - 150 + Math.sin(a) * 52); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-5, -8); ctx.lineTo(-5, 8); ctx.closePath(); ctx.fill(); ctx.restore(); });
+      txt('끌어서 이동', 150, H - 62, 16, C.cream, 'center', { weight: 600, stroke: C.ink, sw: 4 });
+    }
+    touchBtn(W - 120, H - 120, 70, '대시', dashR, () => { touchAct.dash = true; }, G.restricted);
+    touchBtn(W - 270, H - 86, 54, D.skills[sk].name.split(' ').pop(), skR, () => { touchAct.skill = true; });
+    if (G.skills.length > 1) touchBtn(W - 262, H - 198, 30, '⇄', 0, () => { touchAct.swap = true; });
   } else {
     cdIcon(W - 150, H - 52, '대시', 'Shift', dashR);
     cdIcon(W - 64, H - 52, D.skills[sk].name, 'E', skR);
     if (G.skills.length > 1) txt('Q: 기술 바꾸기', W - 108, H - 108, 13, 'rgba(255,244,220,0.7)', 'center', { weight: 700 });
   }
 }
-function touchBtn(x, y, r, label, cdRatio, fn) {
+function touchBtn(x, y, r, label, cdRatio, fn, locked) {
   button(x - r, y - r, r * 2, r * 2, '', fn, { focusable: false, draw: false });
-  ctx.fillStyle = 'rgba(27,24,56,0.6)'; circle(x, y, r); ctx.fill();
+  ctx.fillStyle = locked ? 'rgba(90,25,30,0.7)' : 'rgba(27,24,56,0.7)'; circle(x, y, r); ctx.fill();
   if (cdRatio > 0) { ctx.fillStyle = 'rgba(10,8,30,0.6)'; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + TAU * cdRatio); ctx.closePath(); ctx.fill(); }
   ctx.strokeStyle = cdRatio > 0 ? 'rgba(255,244,220,0.35)' : C.tealL; ctx.lineWidth = 4; circle(x, y, r); ctx.stroke();
-  txt(label, x, y, r > 40 ? 22 : 18, C.cream, 'center');
+  txt(label, x, y, r > 40 ? 24 : 20, locked ? '#ffb3a8' : C.cream, 'center', { weight: 900 });
+  if (locked) txt('금지', x, y + 26, 13, '#ffb3a8', 'center', { weight: 600 });
 }
 function cdIcon(x, y, name, key, cdRatio) {
   ctx.fillStyle = 'rgba(27,24,56,0.85)'; circle(x, y, 34); ctx.fill();
@@ -2196,7 +2210,7 @@ function cdIcon(x, y, name, key, cdRatio) {
 function drawBanner(b) {
   const a = Math.min(1, b.t * 5, (b.dur - b.t) * 3);
   ctx.save(); ctx.globalAlpha = Math.max(0, a);
-  const y = G.boss && !G.boss.dead ? 168 : 150, sc = 1 + Math.max(0, 0.25 - b.t) * 1.2;
+  const y = G.boss && !G.boss.dead ? 168 : (G && coachVisible() ? 190 : 150), sc = 1 + Math.max(0, 0.25 - b.t) * 1.2;
   ctx.translate(W / 2, y); ctx.scale(sc, sc);
   txt(b.title, 0, 0, 42, b.color, 'center', { weight: 900, stroke: C.ink, sw: 9 });
   ctx.restore();
@@ -2216,7 +2230,7 @@ function coachVisible() { return G.mode === 'play' && (G.tip || coachBarOn()); }
 function drawToast(tt) {
   const d = toastDur(tt), inT = Math.min(1, tt.t * 5), outT = Math.min(1, (d - tt.t) * 4);
   const a = Math.max(0, Math.min(inT, outT));
-  const lift = coachVisible() ? 104 : 0;
+  const lift = 0;
   ctx.save(); ctx.globalAlpha = a; ctx.translate(0, (1 - a) * 40);
   if (tt.zone) {
     setFont(22, 600); const tw = ctx.measureText(tt.zone).width + 50;
@@ -2240,15 +2254,16 @@ function drawCoachBar() {
   if (G.tip) { title = G.tip.title; sub = G.tip.sub; badge = '!'; }
   else if (coachBarOn()) { const st = G.coach.steps[G.coach.step]; if (!st) return; title = st.title; sub = st.sub(); badge = '▶'; }
   else return;
-  const w = 800, h = 84, x = W / 2 - w / 2 - (touchUI() ? 120 : 0), y = H - h - 14;
+  const w = 560, x = W / 2 - w / 2, y = 10;
+  const subLines = wrap(sub, w - 100, 17, 600).slice(0, 2), h = 50 + subLines.length * 24;
   const fade = G.tip ? Math.min(1, (G.tip.dur - G.tip.t) * 3) : Math.min(1, (COACH_SHOW - (G.t - G.coach.showAt)) * 3);
   ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, fade));
   const fl = G.coach && !G.tip ? Math.max(0, G.coach.flash) : 0;
   panel(x, y, w, h, { fill: 'rgba(20,17,46,0.96)', stroke: fl > 0 ? C.mustard : C.tealL, r: 20, lw: 3 + fl * 3 });
-  ctx.fillStyle = badge === '!' ? C.tealL : C.mustard; circle(x + 50, y + h / 2, 30); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
-  txt(badge, x + 50, y + h / 2 + 1, badge === '!' ? 30 : 24, C.ink, 'center', { weight: 900 });
-  txt(title, x + 98, y + 28, 25, badge === '!' ? C.tealL : C.mustard, 'left', { weight: 900 });
-  txt(sub, x + 98, y + 60, 18, C.cream, 'left', { weight: 600 });
+  ctx.fillStyle = badge === '!' ? C.tealL : C.mustard; circle(x + 42, y + 36, 24); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt(badge, x + 42, y + 37, badge === '!' ? 26 : 20, C.ink, 'center', { weight: 900 });
+  txt(title, x + 80, y + 28, 23, badge === '!' ? C.tealL : C.mustard, 'left', { weight: 900 });
+  subLines.forEach((l, i) => txt(l, x + 80, y + 56 + i * 24, 17, C.cream, 'left', { weight: 600 }));
   ctx.restore();
 }
 function drawMissionList() {
@@ -2352,29 +2367,36 @@ function drawBossIntro() {
 }
 function drawRecordCard() {
   modalStart(); dim(0.74);
-  const r = G.recView, x = 100, y = 56, w = W - 200, h = 600;
+  const r = G.recView, x = 70, y = 18, w = W - 140, h = 684;
   const pop = Math.min(1, G.recT * 6);
   ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(0.9 + 0.1 * pop, 0.9 + 0.1 * pop); ctx.translate(-W / 2, -H / 2); ctx.globalAlpha = pop;
   panel(x, y, w, h, { fill: 'rgba(22,19,50,0.98)', stroke: C.tealL, r: 24, lw: 4 });
-  rr(x + 30, y + 24, 170, 38, 19); ctx.fillStyle = C.tealL; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
-  txt(G.recFresh ? '지구 기록 획득!' : '지구 기록', x + 115, y + 43, 18, C.ink, 'center', { weight: 900 });
-  txt('실제 역사 기록이에요', x + 216, y + 44, 17, '#bdb6e6', 'left', { weight: 600 });
-  const px = x + 30, py = y + 84, pw = 450, ph = 340;
+  rr(x + 30, y + 22, 200, 44, 22); ctx.fillStyle = C.tealL; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt(G.recFresh ? '지구 기록 획득!' : '지구 기록', x + 130, y + 44, 22, C.ink, 'center', { weight: 900 });
+  txt('실제 역사 기록이에요', x + 248, y + 45, 20, '#bdb6e6', 'left', { weight: 600 });
+  const px = x + 30, py = y + 86, pw = 420, ph = 330;
   const img = PHOTO[r.photo];
   if (img) { rr(px, py, pw, ph, 12); ctx.fillStyle = '#141228'; ctx.fill(); drawContain(img, px + 4, py + 4, pw - 8, ph - 8); rr(px, py, pw, ph, 12); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke(); }
   else drawPhotoBox(r, px, py, pw, ph, { r: 12 });
-  const tx = x + 515, tw = w - 545;
-  txt(r.year + (r.place ? ' · ' + r.place : ''), tx, y + 102, 20, C.amberL, 'left', { weight: 600 });
-  const tl = para(r.title, tx, y + 146, tw, 34, C.cream, 42, { weight: 900 });
-  let yy = y + 146 + tl * 42 + 6;
-  const ll = wrap(r.line, tw - 36, 22, 600);
-  rr(tx - 4, yy - 4, tw + 4, ll.length * 32 + 26, 14); ctx.fillStyle = 'rgba(247,197,72,0.14)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(247,197,72,0.6)'; ctx.stroke();
-  ll.forEach((l, i) => txt(l, tx + 14, yy + 22 + i * 32, 22, C.amberL, 'left', { weight: 600 }));
-  yy += ll.length * 32 + 44;
-  para(r.detail, tx, yy, tw, 20, '#e6e0ff', 31, { weight: 600 });
+  const tx = x + 480, tw = w - 510;
+  txt(r.year + (r.place ? ' · ' + r.place : ''), tx, y + 104, 24, C.amberL, 'left', { weight: 600 });
+  const tl = para(r.title, tx, y + 152, tw, 40, C.cream, 48, { weight: 900 });
+  let yy = y + 152 + tl * 48 + 4;
+  const ll = wrap(r.line, tw - 36, 26, 600);
+  rr(tx - 4, yy - 4, tw + 4, ll.length * 36 + 28, 14); ctx.fillStyle = 'rgba(247,197,72,0.14)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(247,197,72,0.6)'; ctx.stroke();
+  ll.forEach((l, i) => txt(l, tx + 14, yy + 24 + i * 36, 26, C.amberL, 'left', { weight: 600 }));
+  yy += ll.length * 36 + 50;
+  para(r.detail, tx, yy, tw, 23, '#efeaff', 35, { weight: 600 });
   ctx.restore();
-  if (G.recT > 0.5) button(W / 2 - 150, y + h - 92, 300, 66, '모으기', () => closeRecord(), { size: 30 });
-  txt('Enter · Space · 클릭', W / 2, y + h - 12, 15, '#bdb6e6', 'center', { weight: 600 });
+  const left = readSec() - G.recT, bx = W / 2 - 150, by = y + h - 96;
+  if (left > 0) {
+    button(bx, by, 300, 66, '모으기 (' + Math.ceil(left) + ')', null, { size: 30, disabled: true });
+    rr(bx + 14, by + 54, 272 * Math.min(1, G.recT / readSec()), 6, 3); ctx.fillStyle = C.tealL; ctx.fill();
+    txt('기록을 읽어 보세요. 잠시 뒤에 모을 수 있어요', W / 2, y + h - 14, 17, '#bdb6e6', 'center', { weight: 600 });
+  } else {
+    button(bx, by, 300, 66, '모으기', () => closeRecord(), { size: 30 });
+    txt('Enter · Space · 클릭', W / 2, y + h - 14, 17, '#bdb6e6', 'center', { weight: 600 });
+  }
 }
 function drawLevelUp() {
   modalStart(); dim(0.7);
@@ -2410,13 +2432,14 @@ function drawUpIcon(id, x, y) {
 }
 function drawPause() {
   modalStart(); dim(0.7);
-  panel(W / 2 - 230, 110, 460, 500);
-  txt('잠깐 멈춤', W / 2, 165, 38, C.cream, 'center', { weight: 900 });
-  let y = 215;
-  button(W / 2 - 170, y, 340, 58, '계속하기', () => { G.mode = 'play'; }); y += 72;
-  button(W / 2 - 170, y, 340, 54, '지구 기록 보관소', () => openArchive(), { size: 21, fill: C.tealL }); y += 68;
-  button(W / 2 - 170, y, 340, 54, Sound.on ? '소리: 켬' : '소리: 끔', () => Sound.toggle(), { size: 21, fill: '#d9d2f0' }); y += 68;
-  button(W / 2 - 170, y, 340, 54, '스테이지 고르기', () => go(() => SelectScene()), { size: 21 }); y += 68;
+  panel(W / 2 - 230, 90, 460, 560);
+  txt('잠깐 멈춤', W / 2, 140, 38, C.cream, 'center', { weight: 900 });
+  let y = 186;
+  button(W / 2 - 170, y, 340, 58, '계속하기', () => { G.mode = 'play'; }); y += 70;
+  button(W / 2 - 170, y, 340, 52, '지구 기록 보관소', () => openArchive(), { size: 21, fill: C.tealL }); y += 64;
+  button(W / 2 - 170, y, 340, 52, Sound.on ? '소리: 켬' : '소리: 끔', () => Sound.toggle(), { size: 21, fill: '#d9d2f0' }); y += 64;
+  button(W / 2 - 170, y, 340, 52, forceTouch ? '터치 버튼: 켬 (태블릿)' : '터치 버튼: 끔 (태블릿)', () => setForceTouch(!forceTouch), { size: 20, fill: forceTouch ? C.tealL : '#d9d2f0' }); y += 64;
+  button(W / 2 - 170, y, 340, 52, '스테이지 고르기', () => go(() => SelectScene()), { size: 21 }); y += 64;
   txt('나가면 이번 스테이지 진행은 저장되지 않아요 (기록 칩은 저장돼요)', W / 2, y + 14, 14, '#bdb6e6', 'center', { weight: 600 });
 }
 function drawClear() {

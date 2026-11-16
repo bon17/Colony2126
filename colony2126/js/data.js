@@ -10,6 +10,9 @@
 window.COLONY_DATA = {
 
   title: '콜로니 2126',
+
+  /* 기록 카드를 읽을 시간(초): 이 시간이 지나야 「모으기」를 누를 수 있다 */
+  recordReadSeconds: 5,
   subtitle: '민주주의와 인권의 확산',
 
   /* 오프닝 3컷 (그림: img/op1~op3). {중괄호} 안 글자는 노란색으로 강조된다.
