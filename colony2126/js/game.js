@@ -568,7 +568,8 @@ function OpeningScene() {
       panel(bx, by, bw, bh, { fill: 'rgba(16,13,38,0.95)', stroke: 'rgba(255,244,220,0.9)', r: 22 });
       const rich = richText(cut.text);
       const n = this.full ? rich.plain.length : Math.min(rich.plain.length, Math.floor(this.t * 40));
-      drawRich(rich, n, bx + 55, by + 50, bw - 110, size, lh, C.cream, C.mustard);
+      const nLines = Math.min(2, wrap(rich.plain, bw - 110, size, 600).length);
+      drawRich(rich, n, bx + 55, nLines === 1 ? by + bh / 2 : by + bh / 2 - lh / 2, bw - 110, size, lh, C.cream, C.mustard);
       if (cut.card === 'order') drawOrderCard(this.t);
       if (cut.card === 'problems') drawProblemsCard(this.t);
       if (this.full) txt('▼', bx + bw - 40, by + bh - 28 + Math.sin(this.t * 6) * 3, 20, C.mustard, 'center');
@@ -2276,8 +2277,8 @@ function drawBossIntro() {
   txt(b.def.name, 90, 310, 64, C.cream, 'left', { weight: 900, stroke: C.ink, sw: 10 });
   para('「' + b.def.intro + '」', 92, 390, 560, 28, C.cream, 40, { stroke: C.ink, sw: 6 });
   ['① 보스가 주장을 외치면 방어막이 생겨요', '② 주장이 틀렸다는 증거 구슬에 몸으로 닿아요', '③ 방어막이 깨지면 공격! (틀린 구슬은 반격)'].forEach((l, i) =>
-    txt(l, 92, 478 + i * 34, 22, C.amberL, 'left', { stroke: C.ink, sw: 5 }));
-  if (t > 0.7) txt('클릭 · Enter: 시작', 92, 590, 17, C.cream, 'left', { stroke: C.ink, sw: 4 });
+    txt(l, 92, 444 + i * 36, 22, C.amberL, 'left', { stroke: C.ink, sw: 5 }));
+  if (t > 0.7) txt('클릭 · Enter: 시작', 92, 568, 17, C.cream, 'left', { stroke: C.ink, sw: 4 });
   ctx.restore();
 }
 function drawLevelUp() {
