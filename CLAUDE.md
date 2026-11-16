@@ -109,7 +109,7 @@
   ```
 - 그림은 선택 사항: `img/이름.png|jpg|webp`를 차례로 시도하고, 없으면 코드로 그린 대체 화면.
 - 게임 속 움직이는 것(주인공, 드론, 보스, 동료)은 **코드로 직접 그린다**. ChatGPT 그림은 시작 화면·오프닝·보스 등장 컷·엔딩 같은 정지 장면용.
-- 화풍: 레트로 SF + 시위 포스터(스크린 프린트). 팔레트: 화성 녹 빨강, 진한 청록, 크림, 겨자 노랑, 어두운 남색.
+- 화풍: **귀여운 애니메이션 모바일 게임 화풍**(큰 머리·큰 눈, 셀 셰이딩, 또렷한 외곽선, 밝은 색). 처음 정한 레트로 SF 포스터 화풍은 "촌스럽다"고 해서 버렸다(2026-11-16, 4가지 비교 후 결정). 기준 그림은 `img/title.jpg`. 색: 화성 붉은 주황, 청록, 크림, 겨자 노랑, 남보라 하늘. 코드로 그리는 캐릭터도 이 느낌(둥글고 귀엽게, 외곽선)에 맞춘다.
 - 배포용으로 JS를 index.html에 합친 한 파일 버전도 만든다.
 
 ## 9. 수업 파일 다루는 법
@@ -137,7 +137,10 @@
 ## 10. 그림 만들기
 
 - 프롬프트: `colony2126/img/이미지_프롬프트.md` (필수 14장 + 선택 바닥 무늬 5장, 파일 이름 표 포함)
-- Codex CLI로 Claude가 직접 뽑는 방법: ChatGPT Plus 이상 계정으로 `codex login` 하면 구독 한도 안에서 gpt-image-2 생성이 된다고 알려져 있음(공식 문서 아닌 블로그 기준, 설치 후 확인 필요). 설치는 `npm i -g @openai/codex`. 로그인은 사용자가 직접.
+- Codex CLI로 Claude가 직접 뽑는다(2026-11-16 확인, Codex 0.169.0). API 키 없이 ChatGPT 구독 안에서 내장 `image_gen`으로 그려지고, 한 장에 1분쯤 걸린다.
+  - 클라우드 세션: 개인 환경 「Colony2126」을 쓴다(auth.openai.com, chatgpt.com, api.openai.com 허용, 설정 스크립트로 `npm i -g @openai/codex`). 기본 환경에서는 OpenAI 주소가 막혀 있다.
+  - 로그인: `codex login --device-auth` → 사용자가 https://auth.openai.com/codex/device 에서 코드 입력. 로그인 정보는 컨테이너의 `~/.codex/auth.json`에만 있어 새 세션마다 다시 로그인해야 한다.
+  - 뽑기: `codex exec --skip-git-repo-check -s workspace-write -i colony2126/img/title.jpg - < 프롬프트.txt`. 결과는 `~/.codex/generated_images/`에 생긴다. 여러 장은 병렬로 돌려도 된다(4장 동시 확인).
 - API 키 방식은 구독과 별도 요금. 키는 사용자가 직접 환경 변수로 등록한다.
 
 ## 11. 저장소 주의
