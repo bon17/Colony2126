@@ -298,6 +298,7 @@ function drawChibi(x, y, t, moving, aim, look, o) {
   if (!o.noPack) { ctx.fillStyle = '#c99a5b'; rr(-fx * 13 - 5, -6, 10, 13, 3); ctx.fill(); ctx.stroke(); }
   ctx.fillStyle = look.suit; rr(-10, -7, 20, 17, 7); ctx.fill(); ctx.stroke();
   ctx.fillStyle = look.stripe; ctx.fillRect(-7, -5, 3, 13); ctx.fillRect(4, -5, 3, 13);
+  if (o.bib != null) { ctx.fillStyle = '#fff'; rr(-7, -4, 14, 10, 2); ctx.fill(); ctx.lineWidth = 1.4; ctx.stroke(); ctx.lineWidth = 2.4; txt(String(o.bib), 0, 1.5, 8, C.ink, 'center', { weight: 900 }); }
   if (look.scarf) { ctx.fillStyle = look.scarf; rr(-10, -10, 20, 6, 3); ctx.fill(); ctx.stroke(); }
   ctx.fillStyle = look.skin; circle(0, -20, 13); ctx.fill(); ctx.stroke();
   ctx.fillStyle = look.hair; ctx.beginPath();
@@ -374,6 +375,14 @@ function drawEnemy(e, t) {
     ctx.restore();
     ctx.fillStyle = body; circle(0, 0, r * 0.85); ctx.fill(); ctx.stroke();
     drawEye(0, 0, r * 0.5, aimA, t);
+  } else if (e.type === 'ejector') {
+    const r = e.r;
+    ctx.save(); ctx.rotate(aimA); ctx.fillStyle = flash ? '#fff' : C.mustard;
+    [1, -1].forEach(s => { ctx.beginPath(); ctx.moveTo(r * 0.4, s * r * 0.45); ctx.quadraticCurveTo(r * 1.75, s * r * 1.25, r * 1.75, s * r * 0.12); ctx.lineTo(r * 1.3, s * r * 0.18); ctx.quadraticCurveTo(r * 1.25, s * r * 0.7, r * 0.5, s * r * 0.15); ctx.closePath(); ctx.fill(); ctx.stroke(); });
+    ctx.restore();
+    ctx.fillStyle = flash ? '#fff' : '#ffe9b0'; circle(0, 0, r * 0.9); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = C.red; ctx.fillRect(-r * 0.78, r * 0.3, r * 1.56, 3);
+    drawEye(0, -1, r * 0.48, aimA, t);
   } else if (e.type === 'turret') {
     const r = e.r;
     ctx.fillStyle = '#3a3566'; ctx.beginPath();
@@ -397,7 +406,7 @@ function drawEnemy(e, t) {
   }
   if (e.chip) drawChipIcon(0, -e.r - 20 + Math.sin(t * 5) * 2, 0.75, t);
   ctx.restore();
-  if (e.hp < e.maxHp && e.type !== 'chaser') {
+  if (e.hp < e.maxHp && e.type !== 'chaser' && e.type !== 'ejector') {
     const w = e.r * 2;
     ctx.fillStyle = 'rgba(10,8,30,0.7)'; ctx.fillRect(e.x - w / 2, e.y + e.r + 10, w, 4);
     ctx.fillStyle = C.amber; ctx.fillRect(e.x - w / 2, e.y + e.r + 10, w * Math.max(0, e.hp / e.maxHp), 4);
@@ -423,7 +432,7 @@ function drawPhotoBox(rec, x, y, w, h, o) {
     for (let i = -h; i < w; i += 22) { ctx.beginPath(); ctx.moveTo(x + i, y + h); ctx.lineTo(x + i + h, y); ctx.stroke(); }
     if (rec) {
       txt(rec.year, x + w / 2, y + h / 2 - (h > 90 ? 10 : 4), Math.min(34, Math.max(14, w / 7)), C.amberL, 'center', { stroke: C.ink, sw: 4 });
-      if (h > 70) txt('사진 준비 중', x + w / 2, y + h / 2 + 22, Math.max(11, Math.min(15, w / 12)), 'rgba(255,244,220,0.6)', 'center');
+      if (h > 70 && !rec.noPhoto) txt('사진 준비 중', x + w / 2, y + h / 2 + 22, Math.max(11, Math.min(15, w / 12)), 'rgba(255,244,220,0.6)', 'center');
     }
   }
   ctx.restore();
@@ -651,7 +660,7 @@ function SelectScene() {
       txt('스테이지 고르기', 50, 54, 32, C.cream, 'left', { weight: 900 });
       txt('효율만 따지는 오더 때문에 생긴 문제를, 지구 기록으로 하나씩 바꿔요', 50, 92, 19, C.tealL, 'left', { weight: 600 });
       const cardsN = Object.keys(save.cards).length;
-      txt('Lv ' + save.level + '   ·   제도 카드 ' + cardsN + '/5   ·   ' + (save.difficulty === 'easy' ? '쉬움' : '보통'), W - 50, 54, 21, C.amberL, 'right');
+      txt('Lv ' + save.level + '   ·   정착촌 헌장 ' + cardsN + '/5조   ·   ' + (save.difficulty === 'easy' ? '쉬움' : '보통'), W - 50, 54, 21, C.amberL, 'right');
       const n = D.stages.length, cw = 192, gap = 12, x0 = (W - (n * cw + (n - 1) * gap)) / 2, y0 = 330, ch = 286;
       D.stages.forEach((s, i) => {
         const x = x0 + i * (cw + gap);
@@ -668,9 +677,11 @@ function SelectScene() {
         txt(s.name, x + cw / 2, y0 + lift + 112, 25, playable ? C.cream : '#9a93c8', 'center', { weight: 900 });
         txt(s.movement, x + cw / 2, y0 + lift + 146, 18, playable ? C.tealL : '#7f78ad', 'center', { weight: 700 });
         if (s.problem) {
-          rr(x + 14, y0 + lift + 166, cw - 28, 52, 12); ctx.fillStyle = playable ? 'rgba(224,87,62,0.25)' : 'rgba(224,87,62,0.12)'; ctx.fill();
-          txt('문제', x + cw / 2, y0 + lift + 180, 13, playable ? '#ffb3a3' : '#9a7f9a', 'center', { weight: 600 });
-          txt(s.problem, x + cw / 2, y0 + lift + 202, 17, playable ? C.cream : '#9a93c8', 'center', { weight: 600 });
+          rr(x + 14, y0 + lift + 166, cw - 28, 52, 12); ctx.fillStyle = cleared ? 'rgba(95,227,161,0.2)' : playable ? 'rgba(224,87,62,0.25)' : 'rgba(224,87,62,0.12)'; ctx.fill();
+          txt(cleared ? '문제 해결 ✓' : '문제', x + cw / 2, y0 + lift + 180, 13, cleared ? C.good : playable ? '#ffb3a3' : '#9a7f9a', 'center', { weight: 600 });
+          setFont(17, 600); const pfit = Math.min(1, (cw - 40) / ctx.measureText(s.problem).width), pw = ctx.measureText(s.problem).width * pfit;
+          txt(s.problem, x + cw / 2, y0 + lift + 202, 17 * pfit, cleared ? '#a9d9c2' : playable ? C.cream : '#9a93c8', 'center', { weight: 600 });
+          if (cleared) { ctx.strokeStyle = C.good; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x + cw / 2 - pw / 2 - 4, y0 + lift + 203); ctx.lineTo(x + cw / 2 + pw / 2 + 4, y0 + lift + 203); ctx.stroke(); }
         }
         const sy = y0 + lift + 248;
         if (cleared) {
@@ -730,7 +741,8 @@ function drawCardArt(cx, y, w, card, a) {
   else { rr(x, y, w, h, 18 * u); ctx.fillStyle = C.cream; ctx.fill(); ctx.lineWidth = 8 * u; ctx.strokeStyle = C.tealD; ctx.stroke(); }
   txt('제' + card.article + '조', cx, y + h * 0.098, 21 * u, C.tealD, 'center', { weight: 900 });
   txt('제도 카드', cx, y + h * 0.24, 21 * u, C.rust, 'center', { weight: 600 });
-  txt(card.name, cx, y + h * 0.35, 56 * u, C.ink, 'center', { weight: 900 });
+  setFont(56 * u, 900); const nfit = Math.min(1, w * 0.7 / Math.max(1, ctx.measureText(card.name).width));
+  txt(card.name, cx, y + h * 0.35, 56 * u * nfit, C.ink, 'center', { weight: 900 });
   txt(card.year, cx, y + h * 0.46, 36 * u, C.tealD, 'center', { weight: 900 });
   wrap(card.text, w * 0.66, 25 * u, 600).forEach((l, i) => txt(l, cx, y + h * 0.565 + i * 34 * u, 25 * u, '#4a3a2c', 'center', { weight: 600 }));
   txt('헌장 제' + card.article + '조의 재료', cx, y + h * 0.78, 19 * u, '#7a5a3a', 'center', { weight: 600 });
@@ -811,6 +823,7 @@ let G = null;
 const ETYPES = {
   drone:  { r: 22, hp: 30,  speed: 90,  xp: 4,  touch: 10 },
   chaser: { r: 16, hp: 18,  speed: 155, xp: 3,  touch: 10 },
+  ejector: { r: 18, hp: 22, speed: 168, xp: 3,  touch: 6 },
   turret: { r: 27, hp: 60,  speed: 0,   xp: 6,  touch: 10 },
   guard:  { r: 32, hp: 150, speed: 45,  xp: 12, touch: 14 }
 };
@@ -826,7 +839,8 @@ const UPGRADES = [
 ];
 const SKILLS = {
   pulse: { cd: 7 },
-  march: { cd: 14 }
+  march: { cd: 14 },
+  finish: { cd: 12 }
 };
 const xpNeed = lv => 20 + (lv - 1) * 18;
 
@@ -853,7 +867,7 @@ function layoutStage1() {
     arena: { x: 160, y: 0, w: 1280, h: 720 },
     solids: [ { x: 0, y: 0, w: 160, h: 800 }, { x: 1440, y: 0, w: 160, h: 800 }, { x: 160, y: 720, w: 400, h: 80 }, { x: 1040, y: 720, w: 400, h: 80 } ],
     walls: [], gens: [], zones: [], chips: [], caps: [],
-    restrict: { wall: 'div', lane: { x0: EX0, x1: EX1, y0: 1812, y1: 3800 } },
+    restrict: { kind: 'lane', wall: 'div', lane: { x0: EX0, x1: EX1, y0: 1812, y1: 3800 }, slow: 0.72, noDash: true },
     missionWalls: ['wC', 'div', 'wA']
   };
   const wall = (id, x, y, w, h, gens, o) => L.walls.push(Object.assign({ id, x, y, w, h, gens, active: true, fade: 1 }, o || {}));
@@ -878,11 +892,10 @@ function layoutStage1() {
       pool: ['drone', 'chaser', 'drone'], max: 6, every: 3.4,
       initial: [['turret', 210, 1060], ['turret', 1390, 1060], ['guard', 800, 1150, 'r1_nobel'], ['drone', 500, 1400], ['chaser', 1100, 1450]] }
   ];
-  // 기록 칩: 지구 출신 구역 2개, 화성 태생 구역 2개(분리선이 꺼져야 갈 수 있다), C 구역 2개
-  L.chips = [ ['r1_sign', 1270, 3200], ['r1_king', 1460, 3060], ['r1_civil', 520, 2620], ['r1_vote', 300, 3250], ['r1_apartheid', 230, 1620], ['r1_robben', 1370, 1580] ]
+  // 기록 칩: 지구 출신 구역 2개, 화성 태생 구역 2개(분리선이 꺼져야 갈 수 있다), C 구역 3개(마지막 칩은 보스 문 바로 앞). 드론이 가진 2개까지 모두 9개
+  L.chips = [ ['r1_sign', 1270, 3200], ['r1_king', 1460, 3060], ['r1_civil', 520, 2620], ['r1_vote', 300, 3250], ['r1_apartheid', 230, 1620], ['r1_robben', 1370, 1580], ['r1_1994', 800, 884] ]
     .map(c => ({ id: c[0], x: c[1], y: c[2], t: Math.random() * 5, got: false }));
   L.caps = [ [1440, 3440, 0], [1100, 2380, 1], [800, 1300, 2] ].map(c => ({ x: c[0], y: c[1], look: LOOKS[c[2]], freed: false, t: Math.random() * 5 }));
-  L.bossChip = 'r1_1994';
   [[1110, 3240], [1450, 2620], [1110, 2200], [520, 1200], [1080, 1200], [620, 1610], [980, 1610]]
     .forEach(c => L.solids.push({ x: c[0] - 28, y: c[1] - 28, w: 56, h: 56, crate: true }));
   // 돔 가장자리(바깥은 우주): 걸어 나갈 수 없다
@@ -913,7 +926,116 @@ function layoutStage1() {
   }
   return L;
 }
-const LAYOUTS = { 1: layoutStage1 };
+/* ----- 2스테이지 지도: 협곡 레이스 -----
+   아래에서 위로: A 출발선(게이트에 막힘) → B 협곡 달리기(화면이 위로 움직이고, 차단막은 지구 출신만 막는다)
+   → 등록소 광장(출전 금지 발생기) → C 모두의 레이스 → 결승선(보스) */
+function layoutStage2() {
+  const TX0 = 300, TX1 = 1300, RACE_END = 2400;
+  const L = {
+    w: 1600, h: 7100, start: { x: 800, y: 6960 },
+    arena: { x: 160, y: 0, w: 1280, h: 720 },
+    solids: [ { x: 0, y: 0, w: 160, h: 800 }, { x: 1440, y: 0, w: 160, h: 800 }, { x: 160, y: 720, w: 400, h: 80 }, { x: 1040, y: 720, w: 400, h: 80 } ],
+    walls: [], gens: [], zones: [], chips: [], caps: [],
+    restrict: { kind: 'race', wall: 'wB',
+      hud: '번호표 없음 · 출전 금지 · 가속 발판 꺼짐', hudFree: '번호표 획득! 누구나 달릴 수 있어요',
+      mission: '게이트·출전 금지 풀기',
+      free: { title: '번호표 획득! 출전 금지 해제', sub: '차단막이 열리고 가속 발판이 켜졌어요. 지구 출신 주자 2명이 함께 달려요!', join: '함께 달려요!', cheer: '달리자!' } },
+    missionWalls: ['wC', 'wB', 'wA'],
+    track: { x0: TX0, x1: TX1, y0: 812, y1: 7100, startY: 6520 },
+    race: { zone: 1, v: 130, endY: RACE_END, minCam: 1700 },
+    bossPools: BOSS_POOLS2, finish: true,
+    npcBounds: { x0: 1180, x1: 1440, y0: 2080, y1: 2300 },
+    pen: { x: 1130, y: 2020, w: 360, h: 330 },
+    legend: [
+      { k: 'hero', n: '나 (지구 출신 학생)', t: '공명기로 가장 가까운 적을 자동으로 쏴요' },
+      { k: 'gen', n: '발생기', t: '부수면 게이트와 차단막이 꺼져요 (노란 화살표)' },
+      { k: 'bar', n: '출전 금지 차단막', t: '화성 태생은 통과, 지구 출신은 막혀요. 틈으로 지나가요' },
+      { k: 'boost', n: '가속 발판', t: '번호표가 없으면 꺼져 있어요. 출전 금지를 풀면 빨라져요' },
+      { k: 'ejector', n: '퇴장 드론', t: '노란 드론. 닿으면 뒤로 밀어내요. 다른 드론의 주황 탄도 피하세요' },
+      { k: 'chip', n: '기록 칩', t: '실제 지구 역사 기록. 모두 모아야 보스 문이 열려요' }
+    ],
+    flow: ['게이트 열기', '틈으로 달리기', '출전 금지 풀기', '기록 칩 모두 모으기', '보스 반박'],
+    rules: [
+      { k: 'bib', n: '번호표 없음 · 출전 금지', d: '차단막이 나만 막고 가속 발판도 꺼져 있어요. 출전 금지 발생기를 부수면 풀려요' },
+      { k: 'run', n: '달리기 구간', d: '화면이 위로 계속 움직여요. 노란 화살표를 따라 차단막의 틈으로! 뒤처지면 다쳐요' }
+    ]
+  };
+  const wall = (id, x, y, w, h, gens, o) => L.walls.push(Object.assign({ id, x, y, w, h, gens, active: true, fade: 1 }, o || {}));
+  const gen = (id, x, y, hp, o) => L.gens.push(Object.assign({ id, x, y, r: 32, hp: hp || 140, maxHp: hp || 140, alive: true, hitT: 0 }, o || {}));
+  // 출발 게이트: 화성 태생 주자는 지나가고 나만 막힌다
+  wall('wC', TX0, 6196, TX1 - TX0, 16, ['g1a', 'g1b'], { startGate: true, denyText: '출전 금지 · 지구 출신', offMsg: ['출발 게이트가 열렸어요!', '코스로 뛰어드세요. 곧 화면이 위로 움직여요'] });
+  gen('g1a', 400, 6390, 90, { name: '게이트 발생기' }); gen('g1b', 1200, 6390, 90, { name: '게이트 발생기' });
+  // 출전 금지 차단막: [y, 틈 가운데 x, 틈 너비]. 모두 광장의 「출전 금지 발생기」가 켜고 있다
+  const BARS = [[5800, 560, 200], [5400, 1020, 200], [5000, 700, 190], [4620, 1100, 180], [4240, 480, 180], [3880, 880, 180], [3520, 1120, 170], [3160, 620, 170], [2800, 900, 170]];
+  L.barGaps = [];
+  BARS.forEach((b, i) => {
+    const y = b[0], gx = b[1], gw = b[2];
+    wall('b' + i + 'l', TX0, y, gx - gw / 2 - TX0, 18, ['g2d'], { barrier: true, soft: true });
+    wall('b' + i + 'r', gx + gw / 2, y, TX1 - gx - gw / 2, 18, ['g2d'], { barrier: true, soft: true });
+    L.barGaps.push({ x: gx, y: y + 9, w: gw, wall: 'b' + i + 'l' });
+  });
+  wall('wB', 70, 1796, 1460, 16, ['g2d'], { divider: true });
+  gen('g2d', 800, 2030, 320, { name: '출전 금지 발생기', big: true, drop: 'r2_1972' });
+  // C 구역의 차단막: 출전 금지가 풀리면 열린 채로 남는다
+  [1700, 1330].forEach((y, i) => { wall('c' + i + 'l', TX0, y, 400, 18, ['g2d'], { barrier: true, soft: true }); wall('c' + i + 'r', 900, y, 400, 18, ['g2d'], { barrier: true, soft: true }); });
+  wall('wA', 0, 796, 1600, 16, ['g3a', 'g3b']);
+  gen('g3a', 330, 935, 120); gen('g3b', 1270, 935, 120);
+  wall('gate', 560, 712, 480, 16, [], { active: false, fade: 0, gate: true });
+  wall('recgate', 560, 744, 480, 16, [], { recordGate: true, soft: true });
+  L.zones = [
+    { y0: 6212, y1: 7100, exit: 'wC', check: { x: 800, y: 6960 }, label: 'A 구역 · 출발선',
+      pool: ['drone', 'chaser'], max: 3, every: 4.5,
+      initial: [['drone', 520, 6600], ['drone', 1080, 6600], ['chaser', 800, 6450]] },
+    { y0: 1812, y1: 6196, exit: 'wB', check: { x: 800, y: 6120 }, label: 'B 구역 · 협곡 달리기', race: true,
+      pool: ['ejector', 'drone', 'ejector'], pool2: ['drone', 'chaser'], max: 3, every: 3.0,
+      initial: [['turret', 350, 4810], ['turret', 1250, 3700], ['turret', 560, 2150], ['turret', 1040, 2150], ['drone', 800, 2280]] },
+    { y0: 812, y1: 1796, exit: 'wA', check: { x: 800, y: 1740 }, label: 'C 구역 · 모두의 레이스',
+      pool: ['drone', 'chaser', 'drone'], max: 5, every: 3.6,
+      initial: [['turret', 210, 1060], ['turret', 1390, 1060], ['guard', 800, 1160, 'r2_1971'], ['drone', 480, 1420], ['chaser', 1120, 1450]] }
+  ];
+  // 기록 칩 6개: 출발선 1, 달리기 1, 발생기가 떨어뜨리는 1, C 구역 2 + 감시 드론이 가진 1
+  L.chips = [ ['r2_suffrage', 800, 6700], ['r2_boston', 700, 4880], ['r2_now', 230, 1620], ['r2_saudi', 800, 884] ]
+    .map(c => ({ id: c[0], x: c[1], y: c[2], t: Math.random() * 5, got: false }));
+  L.caps = [ [1180, 6690, 1], [1100, 1480, 2] ].map(c => ({ x: c[0], y: c[1], look: LOOKS[c[2]], freed: false, t: Math.random() * 5 }));
+  [[520, 1200], [1080, 1200], [620, 1560], [980, 1560], [470, 6780], [1130, 6500]]
+    .forEach(c => L.solids.push({ x: c[0] - 28, y: c[1] - 28, w: 56, h: 56, crate: true }));
+  // 협곡 절벽: 달리기 구간은 좁고, 광장과 C 구역은 넓다
+  L.solids.push({ x: 0, y: RACE_END, w: TX0, h: 4700, cliff: true }, { x: TX1, y: RACE_END, w: 300, h: 4700, cliff: true },
+                { x: 0, y: 800, w: 70, h: 1600, cliff: true }, { x: 1530, y: 800, w: 70, h: 1600, cliff: true });
+  L.pads = [ { x: 560, y: 6880, w: 480, h: 190 }, { x: 600, y: 1850, w: 400, h: 300 }, { x: 660, y: 812, w: 280, h: 984 }, { x: 200, y: 862, w: 1200, h: 150 } ];
+  L.domes = [ { x: 1420, y: 1250, r: 66 }, { x: 200, y: 1330, r: 58 }, { x: 200, y: 2200, r: 60 } ];
+  // 가속 발판: 달리기 구간(번호표가 없으면 꺼짐)과 C 구역
+  L.boosts = [ [690, 5600], [910, 5200], [470, 4810], [1130, 4430], [690, 4060], [910, 3700], [470, 3340], [1130, 2980], [800, 2600],
+               [800, 1640], [800, 1440], [560, 1050], [1040, 1050] ].map(b => ({ x: b[0], y: b[1] }));
+  const sl = (stageById(2).slogans || []);
+  L.boards = [ { x: 560, y: 6330, text: sl[0] }, { x: 1010, y: 4760, text: sl[1] }, { x: 430, y: 1760, text: sl[2] } ].filter(b => b.text);
+  // 1스테이지에서 바꾼 것: 꺼진 분리선과 「모두의 길」
+  L.deadDivider = { x: 1150, y0: 6850, y1: 7092 };
+  L.signs = [ { x: 1150, y: 6800, text: '모두의 길' } ];
+  L.crowd = [ [430, 6930, 0, 0], [505, 7010, 3, 0], [650, 6890, 1, Math.PI], [1010, 6990, 4, Math.PI], [1230, 6950, 2, Math.PI], [1100, 7040, 0, 0] ]
+    .map(c => ({ x: c[0], y: c[1], look: LOOKS[c[2]], aim: c[3], ph: Math.random() * 5 }));
+  L.props = [ { kind: 'kiosk', x: 800, y: 1890 }, { kind: 'solar', x: 470, y: 1470 }, { kind: 'solar', x: 1130, y: 1470 },
+              { kind: 'antenna', x: 1250, y: 1660 }, { kind: 'tank', x: 1000, y: 1150 }, { kind: 'plant', x: 360, y: 2260 }, { kind: 'plant', x: 430, y: 1940 },
+              { kind: 'tank', x: 380, y: 7040 }, { kind: 'plant', x: 1230, y: 6860 }, { kind: 'antenna', x: 340, y: 6300 } ];
+  // 지구 출신 주자: 광장 대기 구역에서 기다린다
+  L.npcs = [ [1230, 2130, 0], [1330, 2240, 4], [1400, 2130, 3] ].map(n => ({ x: n[0], y: n[1], tx: n[0], ty: n[1], look: LOOKS[n[2]], t: Math.random() * 5, wait: Math.random() * 2, moving: false }));
+  // 화성 태생 주자: 번호표를 달고 차단막을 그냥 지나간다
+  L.runners = [ [470, 3, 7, 150], [690, 2, 12, 240], [910, 4, 31, 320], [1130, 1, 45, 200] ]
+    .map(r => ({ lane: r[0], x: r[0], y: 6556, look: LOOKS[r[1]], bib: r[2], off: r[3] }));
+  L.rocks = [];
+  let seed = 9; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 260 && L.rocks.length < 70; i++) {
+    const x = 90 + rnd() * 1420, y = 830 + rnd() * 6240;
+    const onTrack = x > TX0 - 20 && x < TX1 + 20;
+    if (y > RACE_END - 30 && !onTrack) continue;
+    if (L.pads.some(p => x > p.x - 30 && x < p.x + p.w + 30 && y > p.y - 30 && y < p.y + p.h + 30)) continue;
+    if (L.domes.some(d => dist(x, y, d.x, d.y) < d.r + 50) || L.solids.some(s => !s.cliff && x > s.x - 40 && x < s.x + s.w + 40 && y > s.y - 40 && y < s.y + s.h + 40)) continue;
+    if (L.chips.some(c => dist(x, y, c.x, c.y) < 70) || L.boosts.some(b => dist(x, y, b.x, b.y) < 110) || L.walls.some(w => Math.abs(y - w.y) < 44)) continue;
+    L.rocks.push({ x, y, kind: onTrack || rnd() < 0.35 ? 'crater' : 'rock', s: (onTrack ? 0.5 : 0.6) + rnd() * (onTrack ? 0.5 : 0.9), a: rnd() * TAU });
+  }
+  return L;
+}
+const LAYOUTS = { 1: layoutStage1, 2: layoutStage2 };
 
 /* ----- 처음 하는 사람을 위한 단계별 안내 (1스테이지 A 구역) ----- */
 const touchUI = () => forceTouch || usingTouch || (isTouchDevice && !Object.keys(keys).length);
@@ -935,6 +1057,16 @@ const LAYOUTS_COACH = {
       { title: '발생기를 부수세요', sub: () => '노란 화살표를 따라가요. 발생기 옆에 있으면 자동으로 공격해요', done: () => gensC().length < 2, target: () => nearestOf(gensC()) },
       { title: '남은 발생기도 부수세요', sub: () => '발생기를 모두 부수면 위쪽 레이저 벽이 꺼져요', done: () => !wC().active, target: () => nearestOf(gensC()) },
       { title: '레이저 벽이 꺼졌어요!', sub: () => '위쪽으로 나아가 다음 구역으로 가세요', done: () => G.zoneIdx !== 0, target: () => ({ x: G.P.x, y: 2700 }) }
+    ];
+  },
+  2: () => {
+    const wC = () => wallById('wC');
+    const gensC = () => G.gens.filter(g => g.alive && wC().gens.includes(g.id));
+    return [
+      { title: '출발 게이트로 가 보세요 ▲', sub: () => '', done: () => G.denyAt > 0 || gensC().length < 2, target: () => ({ x: 800, y: 6240 }), skipAfter: 16 },
+      { title: '나만 막혀요! 게이트 발생기를 부수세요', sub: () => '', done: () => gensC().length < 2, target: () => nearestOf(gensC()) },
+      { title: '남은 게이트 발생기도 부수세요', sub: () => '', done: () => !wC().active, target: () => nearestOf(gensC()) },
+      { title: '게이트가 열렸어요! 코스로 뛰어드세요 ▲', sub: () => '', done: () => G.zoneIdx !== 0, target: () => ({ x: G.P.x, y: 6100 }) }
     ];
   }
 };
@@ -1012,6 +1144,8 @@ function newRun(stageId) {
   G.cam.x = clamp(P.x - W / 2, 0, L.w - W); G.cam.y = clamp(P.y - H / 2, 0, L.h - H);
   G.mode = 'brief'; G.briefT = 0; G.tip = null; G.tipsSeen = {};
   G.restricted = !!L.restrict; G.npcs = L.npcs || []; G.freeT = -99;
+  G.race = L.race ? { on: false, done: false, camY: 0, grace: 0, v: L.race.v } : null;
+  G.runners = (L.runners || []).map(r => Object.assign({ t: Math.random() * 5, moving: false, boostT: 0 }, r));
   G.coach = LAYOUTS_COACH[stageId] && !save.cleared[stageId] ? { step: 0, moved: 0, st: 0, flash: 1, steps: LAYOUTS_COACH[stageId]() } : null;
   return G;
 }
@@ -1056,7 +1190,12 @@ function collide(o, isPlayer) {
   let touchedLaser = false;
   for (const s of G.L.solids) pushOutRect(o, s.x, s.y, s.w, s.h);
   for (const d of G.L.domes || []) pushOutCircle(o, d.x, d.y, d.r);
-  for (const w of G.walls) if (w.active && pushOutRect(o, w.x, w.y, w.w, w.h) && !w.soft) touchedLaser = true;
+  for (const w of G.walls) {
+    if (!w.active || (w.barrier && !isPlayer)) continue;
+    if (!pushOutRect(o, w.x, w.y, w.w, w.h)) continue;
+    if (!w.soft) touchedLaser = true;
+    if (isPlayer && (w.barrier || w.denyText)) { G.denyAt = G.t; G.denyMsg = w.denyText || '출전 금지 · 지구 출신'; }
+  }
   for (const g of G.gens) if (g.alive) pushOutCircle(o, g.x, g.y, g.r);
   if (isPlayer) {
     for (const c of G.caps) if (!c.freed) pushOutCircle(o, c.x, c.y, 24);
@@ -1075,7 +1214,7 @@ function moveBody(o, dx, dy, isPlayer) {
 function inRectPad(x, y, w, pad) { return x > w.x - pad && x < w.x + w.w + pad && y > w.y - pad && y < w.y + w.h + pad; }
 function segBlocked(x1, y1, x2, y2) {
   for (const w of G.walls) {
-    if (!w.active) continue;
+    if (!w.active || w.barrier) continue;
     let t0 = 0, t1 = 1;
     const dx = x2 - x1, dy = y2 - y1;
     const p = [-dx, dx, -dy, dy], q = [x1 - w.x, w.x + w.w - x1, y1 - w.y, w.y + w.h - y1];
@@ -1131,7 +1270,7 @@ function updateEnemy(e, dt) {
       e.fireT -= dt;
       if (e.fireT <= 0 && d < 560) { e.fireT = rand(2.0, 2.8); if (!segBlocked(e.x, e.y, P.x, P.y)) enemyShot(e.x, e.y, Math.atan2(dy, dx), 210); }
     }
-  } else if (e.type === 'chaser') {
+  } else if (e.type === 'chaser' || e.type === 'ejector') {
     if (aware) { const w = Math.sin(e.t * 5) * 0.5; vx = (nx - ny * w) * e.speed; vy = (ny + nx * w) * e.speed; }
   } else if (e.type === 'turret') {
     e.aim = Math.atan2(dy, dx);
@@ -1148,7 +1287,15 @@ function updateEnemy(e, dt) {
     const z = G.zones[e.zone];
     if (z) e.y = clamp(e.y, z.y0 + e.r, z.y1 - e.r);
   }
-  if (!P.dead && dist(e.x, e.y, P.x, P.y) < e.r + P.r) hurtPlayer(e.touch, e.x, e.y);
+  if (!P.dead && dist(e.x, e.y, P.x, P.y) < e.r + P.r) {
+    if (e.type === 'ejector') {
+      // 퇴장 드론: 닿으면 뒤(아래)로 밀어내고 사라진다. 대시·무적 중에는 통하지 않는다
+      if (P.inv > 0 || P.dashT > 0 || P.marchT > 0 || P.runT > 0 || G.god) return;
+      const hp0 = P.hp; hurtPlayer(e.touch, e.x, e.y);
+      if (P.hp < hp0 && !P.dead) { P.kx = 0; P.ky = 900; addText(P.x, P.y - 64, '퇴장!', C.bad, 22); }
+      e.dead = true; burst(e.x, e.y, C.mustard, 12, 220);
+    } else hurtPlayer(e.touch, e.x, e.y);
+  }
 }
 
 /* ----- 플레이어 ----- */
@@ -1156,7 +1303,7 @@ const allyBonus = () => 1 + 0.1 * G.settlers.length;
 function hurtPlayer(dmg, sx, sy, force) {
   const P = G.P;
   if (P.dead || G.god) return;
-  if (!force && (P.inv > 0 || P.dashT > 0 || P.marchT > 0)) return;
+  if (!force && (P.inv > 0 || P.dashT > 0 || P.marchT > 0 || P.runT > 0)) return;
   // 연대: 동료가 10초에 한 번씩 대신 막아 준다
   if (!force) {
     const g = G.settlers.find(s => !(s.guardAt > G.t));
@@ -1197,6 +1344,7 @@ function respawn() {
   const P = G.P;
   if (save.difficulty !== 'easy') { if (G.lives <= 0) { G.mode = 'gameover'; ui.focus = 0; return; } P.x = G.checkpoint.x; P.y = G.checkpoint.y; }
   P.dead = false; P.hp = G.st.maxHp; P.inv = 2.2; P.kx = P.ky = 0;
+  if (G.race && G.race.on) { G.race.camY = clamp(P.y - H * 0.62, G.L.race.minCam, G.L.h - H); G.race.grace = 1.5; }
   G.eB = []; G.mode = 'play';
   if (save.difficulty !== 'easy' && G.lives === 1) banner('마지막 목숨!', '또 쓰러지면 스테이지를 처음부터 해야 해요', C.bad, 4);
   else banner(save.difficulty === 'easy' ? '다시 일어났어요!' : '다시 도전!', save.difficulty === 'easy' ? '' : '남은 목숨 ' + G.lives, C.tealL, 1.6);
@@ -1223,6 +1371,7 @@ function useSkill() {
   G.skillCd = SKILLS[id].cd; G.skillUsed = true;
   if (id === 'pulse') { G.pulses.push({ x: P.x, y: P.y, r: 10, max: 260, hit: new Set() }); G.shake = Math.max(G.shake, 5); }
   if (id === 'march') { P.marchT = 4; banner(D.skills.march.name, '', C.tealL, 1.2); }
+  if (id === 'finish') { P.runT = 3; banner(D.skills.finish.name, '', C.tealL, 1.2); }
   Sound.play('good');
 }
 function gainXp(v) {
@@ -1265,6 +1414,8 @@ function closeRecord() {
 
 /* ----- 보스 ----- */
 const BOSS_POOLS = [['spread', 'ring'], ['spread', 'ring', 'split'], ['ring', 'split', 'sweep', 'spread'], ['split', 'sweep', 'ring', 'spread']];
+// 배제 모듈: 내려오는 차단막(bars), 출전 구역 제한(area)
+const BOSS_POOLS2 = [['bars', 'spread'], ['bars', 'ring', 'area'], ['area', 'bars', 'spread', 'ring'], ['bars', 'area', 'ring', 'spread']];
 function startBoss() {
   const gate = G.walls.find(w => w.gate); gate.active = true; gate.fade = 1;
   G.arenaLock = true; G.checkpoint = { x: 800, y: 620 }; G.cam.x = G.L.arena.x; G.cam.y = G.L.arena.y;
@@ -1416,7 +1567,7 @@ function updateBoss(dt) {
   if (b.stun > 0) { b.stun -= dt; return; }
   if (!b.pat) {
     b.patT -= dt;
-    if (b.patT <= 0) b.pat = { kind: pick(BOSS_POOLS[b.round]), t: 0, n: 0, gap: rand(a.x + 170, a.x + a.w - 170) };
+    if (b.patT <= 0) b.pat = { kind: pick((G.L.bossPools || BOSS_POOLS)[b.round]), t: 0, n: 0, gap: rand(a.x + 170, a.x + a.w - 170) };
   } else {
     const p = b.pat; p.t += dt;
     const cool = () => { b.pat = null; b.lasers = []; b.patT = (b.shield ? 1.3 : 0.9) / Math.sqrt(mul); };
@@ -1437,6 +1588,24 @@ function updateBoss(dt) {
       b.lasers = [{ kind: 'h', y: sy, gap: p.gap, warn }];
       if (!warn && !P.dead && Math.abs(P.y - sy) < 10 + P.r * 0.7 && Math.abs(P.x - p.gap) > 95) hurtPlayer(15, P.x, sy - 20);
       if (p.t > 3.9) cool();
+    } else if (p.kind === 'bars') {
+      // 차단막 여러 개가 차례로 내려온다. 틈이 서로 다른 곳에 있다
+      if (!p.bars) { const n = b.round >= 2 ? 3 : 2; p.bars = []; let gx = p.gap; for (let i = 0; i < n; i++) { p.bars.push(gx); let nx; do { nx = rand(a.x + 170, a.x + a.w - 170); } while (Math.abs(nx - gx) < 260); gx = nx; } }
+      b.lasers = []; let alive = false;
+      p.bars.forEach((gx, i) => {
+        const lt = p.t - i * 1.0; if (lt < 0) { alive = true; return; }
+        const warn = lt < 0.8, sy = warn ? 440 : 440 + (lt - 0.8) / 2.5 * (a.h - 440);
+        if (sy > a.h) return;
+        alive = true; b.lasers.push({ kind: 'h', y: sy, gap: gx, warn, bar: true });
+        if (!warn && !P.dead && Math.abs(P.y - sy) < 10 + P.r * 0.7 && Math.abs(P.x - gx) > 95) hurtPlayer(15, P.x, sy - 20);
+      });
+      if (!alive) cool();
+    } else if (p.kind === 'area') {
+      // 출전 구역 제한: 초록 안전 구역 밖은 잠시 뒤 막힌다
+      const hw = b.round >= 2 ? 130 : 155, sx = clamp(p.gap, a.x + hw + 30, a.x + a.w - hw - 30), warn = p.t < 1.2;
+      b.lasers = [{ kind: 'area', x0: sx - hw, x1: sx + hw, warn }];
+      if (!warn && !P.dead && P.y > 430 && (P.x < sx - hw || P.x > sx + hw)) hurtPlayer(15, P.x < sx ? P.x - 30 : P.x + 30, P.y);
+      if (p.t > 2.7) cool();
     }
   }
 }
@@ -1513,8 +1682,11 @@ function drawRules() {
     { k: 'pulse', n: '공명 파동', d: (tch ? "'파동' 버튼" : 'E 키') + ': 둘레의 주황 탄을 지우고 드론을 밀어내요 (7초마다)' },
     { k: 'dash', n: '대시', d: (tch ? '대시 버튼' : 'Shift·Space') + ': 짧게 빨리 움직이고, 그동안 탄에 맞지 않아요' }
   ];
-  if (G.L.restrict) items.push({ k: 'earth', n: '나는 지구 출신', d: '처음엔 좁은 구역에서 느리고 대시 금지. 분리선을 끄면 풀려요' });
-  items.push({ k: 'gem', n: '청록 조각 = 경험치', d: '드론이 떨어뜨려요. 모으면 레벨 업, 강화를 골라요' });
+  if (G.L.rules) G.L.rules.forEach(r => items.push(r));
+  else {
+    if (G.L.restrict) items.push({ k: 'earth', n: '나는 지구 출신', d: '처음엔 좁은 구역에서 느리고 대시 금지. 분리선을 끄면 풀려요' });
+    items.push({ k: 'gem', n: '청록 조각 = 경험치', d: '드론이 떨어뜨려요. 모으면 레벨 업, 강화를 골라요' });
+  }
   items.push({ k: 'chip', n: '기록 칩', d: '실제 지구 역사 기록. 모두 모아야 보스 문이 열려요' });
   items.push({ k: 'ally', n: '정착민 = 동료', d: '캡슐에 닿아 구하면 같이 쏘고, 공격 +10%, 대신 막아 줘요' });
   items.forEach((it, i) => {
@@ -1542,6 +1714,8 @@ function drawRuleIcon(k, x, y) {
   else if (k === 'earth') { ctx.fillStyle = '#6cc0ff'; circle(x, y, 22); ctx.fill(); ctx.fillStyle = '#5fb07a'; circle(x - 7, y - 5, 9); ctx.fill(); circle(x + 9, y + 8, 7); ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; circle(x, y, 22); ctx.stroke(); }
   else if (k === 'gem') { [[-14, 6], [6, -10], [14, 12]].forEach(([dx, dy]) => { ctx.save(); ctx.translate(x + dx, y + dy); ctx.rotate(t * 2); ctx.fillStyle = C.tealL; ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(7, 0); ctx.lineTo(0, 9); ctx.lineTo(-7, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }); }
   else if (k === 'chip') drawChipIcon(x, y, 1.4, t);
+  else if (k === 'bib') { ctx.fillStyle = '#fff'; ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; rr(x - 24, y - 18, 48, 36, 5); ctx.fill(); ctx.stroke(); ctx.strokeStyle = C.bad; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(x - 13, y - 10); ctx.lineTo(x + 13, y + 10); ctx.moveTo(x + 13, y - 10); ctx.lineTo(x - 13, y + 10); ctx.stroke(); }
+  else if (k === 'run') { ctx.fillStyle = '#e0573e'; ctx.fillRect(x - 40, y - 22, 26, 9); ctx.fillRect(x + 14, y - 22, 26, 9); ctx.fillStyle = C.tealL; for (let i = 0; i < 2; i++) { const yy = y + 20 - i * 18 - ((t * 1.6) % 1) * 18; ctx.beginPath(); ctx.moveTo(x, yy - 10); ctx.lineTo(x + 14, yy + 6); ctx.lineTo(x - 14, yy + 6); ctx.closePath(); ctx.fill(); } }
   else if (k === 'ally') { drawChibi(x - 12, y + 14, t, false, 0, LOOKS[0], { noShadow: true, noPack: true }); drawChibi(x + 14, y + 16, t, false, 0, LOOKS[2], { noShadow: true, noPack: true, scale: 0.9 }); }
   ctx.restore();
 }
@@ -1564,7 +1738,7 @@ function updatePlay(dt) {
     // 쓰러진 동안은 'down' 화면이 맡는다
   } else {
     const dashPressed = hit('ShiftLeft') || hit('ShiftRight') || hit('Space') || touchAct.dash;
-    if (dashPressed && G.restricted) { if (G.t - (G.dashWarnT || -9) > 1.2) { G.dashWarnT = G.t; addText(P.x, P.y - 64, '대시 금지 · 지구 출신', C.bad, 19); } }
+    if (dashPressed && G.restricted && L.restrict.noDash) { if (G.t - (G.dashWarnT || -9) > 1.2) { G.dashWarnT = G.t; addText(P.x, P.y - 64, '대시 금지 · 지구 출신', C.bad, 19); } }
     else if (dashPressed && P.dashCd <= 0) {
       P.dashT = 0.18; P.dashCd = st.dashCd; P.dashDir = P.moving ? { x: P.last.x, y: P.last.y } : { x: Math.cos(P.aim), y: Math.sin(P.aim) };
       burst(P.x, P.y, C.tealL, 8, 160, 4);
@@ -1572,15 +1746,22 @@ function updatePlay(dt) {
     if (hit('KeyE') || touchAct.skill) useSkill();
     if (hit('Tab')) { G.missionPinned = !G.missionPinned; if (!G.missionPinned) G.missionAt = -99; }
     if ((hit('KeyQ') || touchAct.swap) && G.skills.length > 1) { G.skillIdx = (G.skillIdx + 1) % G.skills.length; addText(P.x, P.y - 50, D.skills[G.skills[G.skillIdx]].name, C.tealL, 18); }
-    let spd = st.speed * (P.marchT > 0 ? 1.25 : 1) * (G.restricted ? 0.72 : 1);
+    let spd = st.speed * (P.marchT > 0 ? 1.25 : 1) * (G.restricted && L.restrict.slow ? L.restrict.slow : 1) * (P.boostT > 0 ? 1.8 : 1) * (P.runT > 0 ? 1.7 : 1);
     let vx = mx * spd, vy = my * spd;
     if (P.dashT > 0) { P.dashT -= dt; vx = P.dashDir.x * spd * 3.2; vy = P.dashDir.y * spd * 3.2; if (Math.random() < 0.6) G.parts.push({ x: P.x, y: P.y, vx: 0, vy: 0, life: 0.25, t: 0, color: 'rgba(159,245,234,0.8)', size: 9 }); }
     vx += P.kx; vy += P.ky; P.kx *= Math.pow(0.0008, dt); P.ky *= Math.pow(0.0008, dt);
     if (moveBody(P, vx * dt, vy * dt, true)) { hurtPlayer(8, P.x, P.y + (P.y > G.cam.y + H / 2 ? 30 : -30)); showTip('wall', '레이저 벽은 닿으면 아파요', '발생기를 모두 부수면 꺼져요. 노란 화살표를 따라가요'); }
+    // 나만 막는 차단막에 닿았을 때
+    if (G.denyAt === G.t && G.t - (G.denyWarnT || -9) > 1.6) {
+      G.denyWarnT = G.t; addText(P.x, P.y - 64, G.denyMsg, C.bad, 19);
+      if (!G.denySaid) { G.denySaid = true; const r = G.runners[1]; if (r) addText(r.x, r.y - 56, '왜 너만 막아?', C.cream, 19); }
+    }
+    if (P.runT > 0 && Math.random() < 0.7) G.parts.push({ x: P.x, y: P.y, vx: 0, vy: 0, life: 0.3, t: 0, color: 'rgba(247,197,72,0.8)', size: 9 });
   }
   if (P.dashCd > 0) P.dashCd -= dt;
   if (P.inv > 0) P.inv -= dt;
   if (P.marchT > 0) P.marchT -= dt;
+  if (P.runT > 0) P.runT -= dt;
   if (G.skillCd > 0) G.skillCd -= dt;
   // 자동 발사
   P.fireT -= dt; if (P.glow > 0) P.glow -= dt * 3;
@@ -1624,7 +1805,7 @@ function updatePlay(dt) {
   for (const b of G.pB) {
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     if (b.life <= 0) continue;
-    if (G.walls.some(w => w.active && inRectPad(b.x, b.y, w, 4)) || G.L.solids.some(s => inRectPad(b.x, b.y, s, 0)) || (G.L.domes || []).some(d => dist(b.x, b.y, d.x, d.y) < d.r)) { b.life = 0; burst(b.x, b.y, C.tealL, 3, 90, 3); continue; }
+    if (G.walls.some(w => w.active && !w.barrier && inRectPad(b.x, b.y, w, 4)) || G.L.solids.some(s => inRectPad(b.x, b.y, s, 0)) || (G.L.domes || []).some(d => dist(b.x, b.y, d.x, d.y) < d.r)) { b.life = 0; burst(b.x, b.y, C.tealL, 3, 90, 3); continue; }
     for (const e of G.enemies) { if (e.dead || e.spawnT > 0) continue; if (dist(b.x, b.y, e.x, e.y) < e.r + b.r) { damageEnemy(e, b.dmg); b.life = 0; burst(b.x, b.y, C.tealL, 3, 100, 3); break; } }
     if (b.life <= 0) continue;
     for (const g of G.gens) {
@@ -1640,10 +1821,10 @@ function updatePlay(dt) {
   for (const b of G.eB) {
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     if (b.x < -50 || b.y < -50 || b.x > L.w + 50 || b.y > L.h + 50) { b.life = 0; continue; }
-    if (G.walls.some(w => w.active && inRectPad(b.x, b.y, w, 2)) || G.L.solids.some(s => inRectPad(b.x, b.y, s, 0)) || (G.L.domes || []).some(d => dist(b.x, b.y, d.x, d.y) < d.r)) { b.life = 0; continue; }
+    if (G.walls.some(w => w.active && !w.barrier && inRectPad(b.x, b.y, w, 2)) || G.L.solids.some(s => inRectPad(b.x, b.y, s, 0)) || (G.L.domes || []).some(d => dist(b.x, b.y, d.x, d.y) < d.r)) { b.life = 0; continue; }
     if (P.dead) continue;
     const d = dist(b.x, b.y, P.x, P.y - 4);
-    if (P.marchT > 0 && d < 50) { b.life = 0; burst(b.x, b.y, C.tealL, 4, 120, 3); continue; }
+    if ((P.marchT > 0 || P.runT > 0) && d < 50) { b.life = 0; burst(b.x, b.y, C.tealL, 4, 120, 3); continue; }
     if (d < b.r + P.r * 0.7) { if (P.inv <= 0 && P.dashT <= 0) { hurtPlayer(10, b.x, b.y); b.life = 0; } }
   }
   G.eB = G.eB.filter(b => b.life > 0);
@@ -1703,11 +1884,13 @@ function updatePlay(dt) {
     z.spawnT -= dt;
     if (z.spawnT <= 0) {
       z.spawnT = z.every;
-      if (G.enemies.filter(e => e.zone === G.zoneIdx).length < z.max) {
+      const racing = z.race && G.race && G.race.on;
+      if (G.enemies.filter(e => e.zone === G.zoneIdx && !(z.race && e.type === 'turret')).length < z.max && !(racing && G.race.grace > 0)) {
         for (let k = 0; k < 14; k++) {
           const xr = z.xr && G.restricted ? z.xr : [80, L.w - 80];
-          const x = rand(xr[0], xr[1]), y = rand(z.y0 + 60, z.y1 - 60);
-          if (dist(x, y, P.x, P.y) > 430 && !G.walls.some(w => w.active && inRectPad(x, y, w, 30)) && !G.L.solids.some(s => inRectPad(x, y, s, 30)) && !(G.L.domes || []).some(d => dist(x, y, d.x, d.y) < d.r + 30)) { spawnEnemy(pick(z.pool), x, y, G.zoneIdx); break; }
+          // 달리기 구간에서는 화면 바로 위쪽에, 달리기가 끝나면 광장에만 나타난다
+          const x = rand(xr[0], xr[1]), y = racing ? rand(G.race.camY - 110, G.race.camY + 30) : rand(z.y0 + 60, (z.race ? L.race.endY : z.y1) - 60);
+          if (dist(x, y, P.x, P.y) > (racing ? 300 : 430) && !G.walls.some(w => w.active && inRectPad(x, y, w, 30)) && !G.L.solids.some(s => inRectPad(x, y, s, 30)) && !(G.L.domes || []).some(d => dist(x, y, d.x, d.y) < d.r + 30)) { spawnEnemy(pick(z.race && !racing && z.pool2 ? z.pool2 : z.pool), x, y, G.zoneIdx); break; }
         }
       }
     }
@@ -1716,11 +1899,13 @@ function updatePlay(dt) {
   if (rg && rg.active && recordsLeft() === 0) { rg.active = false; rg.fade = 1; banner('기록 문이 열렸어요!', '기록을 모두 모았어요. 이제 보스 구역으로 들어가요', C.tealL, 3.5); Sound.play('good'); }
   if (!G.boss && !wallById('wA').active && P.y < 690 && !P.dead) startBoss();
   if (G.boss && !G.boss.dead) updateBoss(dt);
+  updateRace(dt); updateBoosts(dt); updateRunners(dt);
   updateCoach(dt); updateTips(dt); updateNpcs(dt);
   updateFx(dt);
   // 카메라
   let tx, ty;
   if (G.arenaLock) { tx = L.arena.x; ty = L.arena.y; }
+  else if (G.race && G.race.on) { tx = clamp(P.x - W / 2, 0, L.w - W); ty = G.race.camY; }
   else { tx = clamp(P.x - W / 2, 0, L.w - W); ty = clamp(P.y - H / 2 - 30, 0, L.h - H); }
   const k = 1 - Math.exp(-dt * 8);
   G.cam.x = lerp(G.cam.x, tx, k); G.cam.y = lerp(G.cam.y, ty, k);
@@ -1740,9 +1925,12 @@ function damageGen(g, dmg) {
     if (w.gens.every(id => !G.gens.find(x => x.id === id).alive)) {
       w.active = false; w.fade = 1;
       if (w.divider) liberate();
-      else if (!freed) banner('레이저 벽 해제!', w.id === 'wA' ? '앞쪽 보스 구역으로 들어가세요' : '앞으로 나아가세요', C.mustard, 2.6);
+      else if (w.barrier) { /* 차단막은 조용히 열린다 */ }
+      else if (!freed) banner(w.offMsg ? w.offMsg[0] : '레이저 벽 해제!', w.offMsg ? w.offMsg[1] : w.id === 'wA' ? '앞쪽 보스 구역으로 들어가세요' : '앞으로 나아가세요', C.mustard, 2.6);
     }
   }
+  // 발생기가 가지고 있던 기록 칩
+  if (g.drop) { G.chips.push({ id: g.drop, x: g.x, y: g.y + 70, t: 0, got: false }); g.drop = null; }
 }
 function showAllyTip() {
   const n = G.settlers.length;
@@ -1756,11 +1944,97 @@ function liberate() {
   burst(G.P.x, G.P.y, C.tealL, 30, 300);
   const P = G.P;
   const near = G.npcs.slice().sort((a, b) => dist(a.x, a.y, P.x, P.y) - dist(b.x, b.y, P.x, P.y));
-  near.slice(0, 2).forEach(n => { n.joined = true; G.settlers.push({ look: n.look, x: n.x, y: n.y, t: 0, fireT: 0.5, aim: 0, moving: false }); addText(n.x, n.y - 50, '함께 가요!', C.tealL, 20); });
+  const fr = (G.L.restrict && G.L.restrict.free) || {};
+  near.slice(0, 2).forEach(n => { n.joined = true; G.settlers.push({ look: n.look, x: n.x, y: n.y, t: 0, fireT: 0.5, aim: 0, moving: false }); addText(n.x, n.y - 50, fr.join || '함께 가요!', C.tealL, 20); });
   G.npcs = G.npcs.filter(n => !n.joined);
-  G.npcs.forEach(n => addText(n.x, n.y - 50, '야호!', C.mustard, 18));
+  G.npcs.forEach(n => addText(n.x, n.y - 50, fr.cheer || '야호!', C.mustard, 18));
+  G.runners.forEach(r => addText(r.x, r.y - 54, '같이 달리자!', C.mustard, 18));
+  // 퇴장 드론은 멈춘다
+  G.enemies.forEach(e => { if (e.type === 'ejector' && !e.dead) { e.dead = true; burst(e.x, e.y, C.mustard, 10, 200); addText(e.x, e.y - 30, '정지', C.good, 17); } });
   G.tipsSeen.ally = true;
-  showNotice('분리선 해제!', '이제 어디든 갈 수 있고 대시도 쓸 수 있어요. 화성 태생 주민 2명이 함께해요! (동료 ' + G.settlers.length + '명 · 공격 +' + G.settlers.length * 10 + '%)', '✓');
+  showNotice(fr.title || '분리선 해제!', (fr.sub || '이제 어디든 갈 수 있고 대시도 쓸 수 있어요. 화성 태생 주민 2명이 함께해요!') + ' (동료 ' + G.settlers.length + '명 · 공격 +' + G.settlers.length * 10 + '%)', '✓');
+}
+/* ----- 달리기 구간: 화면이 위로 계속 움직인다 ----- */
+function nextGap() {
+  const gs = G.L.barGaps; if (!gs) return null;
+  let best = null;
+  for (const g of gs) { const w = wallById(g.wall); if (w && w.active && g.y < G.P.y - 12 && (!best || g.y > best.y)) best = g; }
+  return best;
+}
+function updateRace(dt) {
+  const R = G.race; if (!R) return;
+  const P = G.P, L = G.L, rz = L.race;
+  if (!R.on && !R.done && G.zoneIdx === rz.zone && !P.dead) {
+    R.on = true; R.camY = G.cam.y; R.grace = 2.4;
+    banner('달리기 시작!', '화면이 위로 움직여요. 노란 화살표를 따라 차단막의 틈으로!', C.mustard, 3.2);
+  }
+  if (!R.on) return;
+  if (R.grace > 0) R.grace -= dt; else R.camY -= R.v * dt;
+  R.camY = Math.min(R.camY, P.y - H * 0.62);        // 앞서 달리면 화면도 따라간다
+  R.camY = Math.max(R.camY, rz.minCam);
+  // 뒤처지면 다치고, 화면 아래쪽 차단막 너머로 끌려 올라간다
+  const bottom = R.camY + H - 46;
+  if (P.y > bottom && !P.dead) {
+    hurtPlayer(12, P.x, P.y + 60);
+    if (!P.dead) {
+      let ny = R.camY + H * 0.64;
+      for (const w of G.walls) if (w.active && w.barrier && w.y > R.camY + H * 0.3 && w.y < bottom + 30 && w.y - 60 < ny) ny = w.y - 60;
+      P.y = ny; P.kx = P.ky = 0; P.inv = Math.max(P.inv, 1.4);
+      addText(P.x, P.y - 64, '뒤처졌어요!', C.bad, 22); burst(P.x, P.y, C.bad, 12, 200);
+    }
+  }
+  // 지나온 차단막 바로 위가 다시 시작하는 자리
+  for (const g of L.barGaps) if (P.y < g.y - 70 && G.checkpoint.y > g.y - 90) G.checkpoint = { x: g.x, y: g.y - 90 };
+  // 화면 아래로 지나가 버린 기록 칩은 앞쪽 틈에 다시 나타난다
+  let k = 0;
+  for (const c of G.chips) {
+    if (c.got || save.records[c.id] || c.y < R.camY + H + 70) continue;
+    const ahead = L.barGaps.filter(g => g.y < R.camY - 40).sort((a, b) => b.y - a.y)[k++];
+    if (ahead) { c.x = ahead.x; c.y = ahead.y + 80; } else { c.x = 520 + (k++) * 110; c.y = rz.endY - 90; }
+  }
+  // 뒤에 남은 드론은 사라진다
+  for (const e of G.enemies) if (!e.dead && e.type !== 'turret' && e.y > R.camY + H + 170) e.dead = true;
+  if (P.y < rz.endY) {
+    R.on = false; R.done = true; G.checkpoint = { x: 800, y: rz.endY - 70 };
+    let n = 0;
+    for (const c of G.chips) if (!c.got && !save.records[c.id] && c.y > rz.endY) { c.x = 520 + (n++) * 120; c.y = rz.endY - 100; }
+    banner('등록소 광장 도착!', '출전 금지 발생기를 부수면 차단막이 모두 꺼져요', C.mustard, 3.2);
+  }
+}
+function updateBoosts(dt) {
+  const P = G.P;
+  if (P.boostT > 0) { P.boostT -= dt; if (Math.random() < 0.6) G.parts.push({ x: P.x, y: P.y + 6, vx: 0, vy: 0, life: 0.25, t: 0, color: 'rgba(159,245,234,0.8)', size: 8 }); }
+  if (P.dead) return;
+  for (const b of G.L.boosts || []) {
+    if (Math.abs(P.x - b.x) > 84 || Math.abs(P.y - b.y) > 38) continue;
+    if (G.restricted) { if (G.t - (G.boostWarnT || -9) > 1.8) { G.boostWarnT = G.t; addText(P.x, P.y - 64, '가속 발판 꺼짐 · 번호표 없음', C.bad, 19); } }
+    else { if (!(P.boostT > 0)) { addText(P.x, P.y - 64, '슝!', C.tealL, 26); burst(P.x, P.y, C.tealL, 14, 220, 5); Sound.play('good'); } P.boostT = 1.3; }
+  }
+}
+// 화성 태생 주자: 번호표를 달고, 차단막을 그냥 지나가며, 가속 발판도 쓴다
+function updateRunners(dt) {
+  const R = G.runners; if (!R.length || G.arenaLock) return;
+  const P = G.P, race = G.race;
+  R.forEach((r, i) => {
+    r.t += dt; if (r.boostT > 0) r.boostT -= dt;
+    let lead;
+    if (G.time < 2.6) lead = r.y;                                        // 출발선에서 기다린다
+    else if (!race.on && !race.done) lead = 6050 - i * 44;               // 게이트를 지나 앞에서 기다린다
+    else if (race.on) lead = race.camY + r.off;                          // 달리기: 화면과 함께 달린다
+    else if (G.restricted) lead = 2210 + i * 26;                         // 광장에서 기다린다
+    else lead = Math.max(P.y - 70 - r.off * 0.5, 1030 + i * 34);         // 모두의 레이스: 함께 달린다
+    const ty = Math.min(r.y, lead);
+    const v = clamp((r.y - ty) * 3.2, 0, r.boostT > 0 ? 520 : 340);
+    const py = r.y; r.y -= v * dt; r.moving = v > 24;
+    r.x = r.lane + Math.sin(r.t * 0.7 + i * 1.7) * 26;
+    if (!r.said && G.time >= 2.6) { r.said = true; if (i === 1) addText(r.x, r.y - 56, '출발!', C.mustard, 20); }
+    for (const w of G.walls) {
+      if (!w.active || !(w.barrier || w.startGate)) continue;
+      const wy = w.y + w.h / 2;
+      if (py > wy && r.y <= wy && r.x > w.x && r.x < w.x + w.w) { addText(r.x, wy - 30, '통과', C.good, 17); burst(r.x, wy, C.good, 8, 140, 4); }
+    }
+    for (const b of G.L.boosts || []) if (Math.abs(r.x - b.x) < 80 && Math.abs(r.y - b.y) < 34 && !(r.boostT > 0)) { r.boostT = 0.7; burst(r.x, r.y, C.tealL, 6, 160, 4); }
+  });
 }
 function updateNpcs(dt) {
   if (G.arenaLock) return;
@@ -1768,7 +2042,7 @@ function updateNpcs(dt) {
     n.t += dt;
     if (n.wait > 0) { n.wait -= dt; n.moving = false; continue; }
     const d = dist(n.x, n.y, n.tx, n.ty);
-    if (d < 6) { n.wait = rand(1, 3); n.tx = clamp(n.x + rand(-220, 220), 100, 960); n.ty = clamp(n.y + rand(-220, 220), 1880, 3760); continue; }
+    if (d < 6) { const nb = G.L.npcBounds || { x0: 100, x1: 960, y0: 1880, y1: 3760 }; n.wait = rand(1, 3); n.tx = clamp(n.x + rand(-220, 220), nb.x0, nb.x1); n.ty = clamp(n.y + rand(-220, 220), nb.y0, nb.y1); continue; }
     n.moving = true;
     const ox = n.x, oy = n.y;
     n.x += (n.tx - n.x) / d * 55 * dt; n.y += (n.ty - n.y) / d * 55 * dt;
@@ -1798,6 +2072,7 @@ function drawStage() {
   const vis = (x, y, m) => x > cam.x - m && x < cam.x + W + m && y > cam.y - m && y < cam.y + H + m;
   for (const g of G.gens) if (vis(g.x, g.y, 200)) drawGenLinks(g);
   for (const w of G.walls) drawWall(w);
+  drawBarGaps();
   for (const c of G.chips) if (!c.got && vis(c.x, c.y, 60)) {
     drawChipIcon(c.x, c.y + Math.sin(c.t * 3) * 4, 1, G.t);
     if (dist(c.x, c.y, P.x, P.y) < 340) { setFont(13, 600); const tw = ctx.measureText('기록 칩').width + 16; rr(c.x - tw / 2, c.y + 18, tw, 18, 9); ctx.fillStyle = 'rgba(27,24,56,0.85)'; ctx.fill(); txt('기록 칩', c.x, c.y + 27, 13, C.tealL, 'center', { weight: 600 }); }
@@ -1810,6 +2085,8 @@ function drawStage() {
   for (const e of G.enemies) if (vis(e.x, e.y, 60)) actors.push({ y: e.y, f: () => drawEnemy(e, G.t) });
   G.settlers.forEach(s => actors.push({ y: s.y, f: () => drawChibi(s.x, s.y, s.t, s.moving, s.aim, s.look, { scale: 1.1, noPack: true }) }));
   G.npcs.forEach(n => { if (vis(n.x, n.y, 60)) actors.push({ y: n.y, f: () => drawChibi(n.x, n.y, n.t, n.moving, n.aim || 0, n.look, { scale: 1.1, noPack: true }) }); });
+  G.runners.forEach(r => { if (vis(r.x, r.y, 60)) actors.push({ y: r.y, f: () => drawChibi(r.x, r.y, r.t, r.moving, -Math.PI / 2, r.look, { scale: 1.1, noPack: true, bib: r.bib }) }); });
+  (G.L.crowd || []).forEach(c => { if (vis(c.x, c.y, 60)) actors.push({ y: c.y, f: () => drawChibi(c.x, c.y, G.t + c.ph, false, c.aim, c.look, { scale: 1.1, noPack: true }) }); });
   if (!P.dead) actors.push({ y: P.y, f: drawPlayer });
   actors.sort((a, b) => a.y - b.y).forEach(a => a.f());
   if (G.P.marchT > 0 && !P.dead) { ctx.strokeStyle = 'rgba(159,245,234,' + (0.5 + 0.3 * Math.sin(G.t * 10)) + ')'; ctx.lineWidth = 4; circle(P.x, P.y - 4, 50); ctx.stroke(); ctx.fillStyle = 'rgba(159,245,234,0.12)'; ctx.fill(); }
@@ -1848,6 +2125,7 @@ function guideGoal() {
   const P = G.P;
   if (G.boss || P.dead || G.mode !== 'play') return null;
   if (G.coach) { const st = G.coach.steps[G.coach.step]; if (st && st.target) { const t = st.target(); if (t) return { x: t.x, y: t.y, near: true }; } }
+  if (G.race && G.race.on) { const g = nextGap(); if (g) return { x: g.x, y: g.y, near: true }; }
   const z = G.zones[G.zoneIdx];
   if (!z) { if (recordGateNeeded()) { const c = nearestChipTarget(); if (c) return { x: c.x, y: c.y }; } return { x: 800, y: 640 }; }
   const w = wallById(z.exit);
@@ -1866,7 +2144,8 @@ function guideGoal() {
 }
 // 지금 갈 수 있는 기록 칩(과 칩을 가진 적)만 고른다: 분리선 건너편, 아직 꺼지지 않은 벽 너머는 뺀다
 function reachable(x, y) {
-  if (G.restricted && x < 1000) return false;
+  const ln = G.L.restrict && G.L.restrict.lane;
+  if (G.restricted && ln && x < ln.x0 - 16) return false;
   const here = G.zoneIdx < 0 ? G.zones.length : G.zoneIdx, zc = zoneIndexAt(y);
   if (zc < 0 || zc <= here) return true;
   for (let i = here; i < zc; i++) { const w = wallById(G.zones[i].exit); if (w && w.active) return false; }
@@ -1905,7 +2184,7 @@ function drawDust() {
 function drawPlayer() {
   const P = G.P;
   if (P.inv > 0 && P.dashT <= 0 && Math.floor(P.inv * 16) % 2 === 0) ctx.globalAlpha = 0.45;
-  drawHeroAt(P.x, P.y, P.aim, P.t, P.moving, Math.max(0, P.glow));
+  drawHeroAt(P.x, P.y, P.aim, P.t, P.moving, Math.max(0, P.glow), G.L.restrict && G.L.restrict.kind === 'race' && !G.restricted ? { bib: 26 } : null);
   ctx.globalAlpha = 1;
   if (G.st.allies > 0) for (let k = 0; k < G.st.allies; k++) {
     const a = G.t * 2.2 + k / G.st.allies * TAU, x = P.x + Math.cos(a) * 46, y = P.y - 6 + Math.sin(a) * 30;
@@ -2031,9 +2310,13 @@ function drawSpaceWindow(s) {
 }
 function drawWorldDecor() {
   const L = G.L;
+  if (L.track) drawTrack(L.track);
   for (const r of L.rocks || []) drawRock(r);
   for (const p of L.pads || []) drawPad(p);
-  if (L.restrict && G.restricted) {
+  for (const b of L.boosts || []) drawBoost(b);
+  if (L.deadDivider) drawDeadDivider(L.deadDivider);
+  if (L.pen) drawPen(L.pen);
+  if (L.restrict && G.restricted && L.restrict.lane) {
     const ln = L.restrict.lane;
     ctx.fillStyle = 'rgba(25,10,40,0.32)'; ctx.fillRect(ln.x0, ln.y0, ln.x1 - ln.x0, ln.y1 - ln.y0);
   }
@@ -2051,6 +2334,12 @@ function drawWorldDecor() {
       ctx.restore();
     });
   }
+  (L.signs || []).forEach(s => {
+    ctx.save(); ctx.translate(s.x, s.y);
+    rr(-110, -30, 220, 60, 14); ctx.fillStyle = 'rgba(20,60,70,0.88)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.tealL; ctx.stroke();
+    txt(s.text, 0, 2, 26, C.tealL, 'center', { weight: 900 });
+    ctx.restore();
+  });
   const a = L.arena;
   ctx.save();
   ctx.fillStyle = '#2e2b52'; ctx.fillRect(a.x, a.y, a.w, a.h);
@@ -2058,12 +2347,18 @@ function drawWorldDecor() {
   for (let yy = a.y; yy < a.y + a.h; yy += 52) for (let xx = a.x + ((yy / 52) & 1) * 30; xx < a.x + a.w; xx += 60) { ctx.beginPath(); for (let k = 0; k < 6; k++) { const an = k / 6 * TAU + Math.PI / 6; ctx.lineTo(xx + Math.cos(an) * 30, yy + Math.sin(an) * 30); } ctx.closePath(); ctx.stroke(); }
   ctx.strokeStyle = 'rgba(255,177,46,0.22)'; ctx.lineWidth = 3;
   for (let r = 120; r < 700; r += 110) { circle(800, 300, r); ctx.stroke(); }
+  if (L.finish) {
+    checker(a.x + 40, 150, a.w - 80, 24, 12);
+    rr(800 - 80, 92, 160, 40, 20); ctx.fillStyle = 'rgba(20,17,46,0.9)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.mustard; ctx.stroke();
+    txt('결승선', 800, 113, 22, C.amberL, 'center', { weight: 900 });
+  }
   ctx.restore();
   for (const d of L.domes || []) drawDome(d);
   for (const p of L.props || []) drawProp(p);
   for (const b of L.boards || []) drawBoard(b);
   for (const s of L.solids) {
     if (s.crate) drawCrate(s);
+    else if (s.cliff) drawCliff(s);
     else if (s.space) drawSpaceEdge(s);
     else drawSpaceWindow(s);
   }
@@ -2102,12 +2397,137 @@ function drawProp(p) {
     ctx.fillStyle = '#ec6f9f'; circle(-4, -20, 3.5); ctx.fill(); circle(10, -9, 3.5); ctx.fill(); ctx.fillStyle = C.mustard; circle(-10, -8, 3); ctx.fill();
     ctx.fillStyle = C.cream; rr(-18, -4, 36, 18, 6); ctx.fill(); ctx.stroke();
     ctx.fillStyle = C.teal; ctx.fillRect(-18, 2, 36, 4);
+  } else if (p.kind === 'kiosk') {
+    ctx.fillStyle = 'rgba(60,20,20,0.3)'; ellipse(4, 30, 62, 12); ctx.fill();
+    ctx.fillStyle = C.cream; rr(-52, -30, 104, 58, 10); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = C.teal; rr(-60, -50, 120, 26, 8); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; rr(-19, -17, 38, 30, 4); ctx.fill(); ctx.stroke();
+    txt(G.restricted ? '✕' : '26', 0, -1, 18, G.restricted ? C.bad : C.ink, 'center', { weight: 900 });
+    ctx.fillStyle = G.restricted ? C.red : C.good; circle(40, -37, 5); ctx.fill(); ctx.stroke();
+    setFont(13, 600); const kw = ctx.measureText('번호표 발급기').width + 16;
+    rr(-kw / 2, -76, kw, 18, 9); ctx.fillStyle = 'rgba(27,24,56,0.85)'; ctx.fill(); txt('번호표 발급기', 0, -67, 13, C.cream, 'center', { weight: 600 });
   } else if (p.kind === 'tank') {
     ctx.fillStyle = 'rgba(60,20,20,0.3)'; ellipse(4, 16, 16, 6); ctx.fill();
     ctx.fillStyle = '#e8e2d6'; rr(-12, -24, 24, 40, 10); ctx.fill(); ctx.stroke();
     ctx.fillStyle = C.teal; ctx.fillRect(-12, -6, 24, 6);
     txt('O₂', 0, 8, 11, C.ink, 'center', { weight: 600 });
   }
+  ctx.restore();
+}
+function checker(x, y, w, h, s) {
+  for (let i = 0; i * s < w; i++) for (let j = 0; j * s < h; j++) { ctx.fillStyle = (i + j) % 2 ? '#1b1838' : '#fff4dc'; ctx.fillRect(x + i * s, y + j * s, Math.min(s, w - i * s), Math.min(s, h - j * s)); }
+}
+// 협곡 레이스 코스: 다져진 흙길, 흰 가장자리 선, 출발선
+function drawTrack(tr) {
+  const c = G.cam, y0 = Math.max(tr.y0, c.y - 10), y1 = Math.min(tr.y1, c.y + H + 10);
+  if (y1 <= y0) return;
+  ctx.fillStyle = 'rgba(86,30,24,0.42)'; ctx.fillRect(tr.x0, y0, tr.x1 - tr.x0, y1 - y0);
+  ctx.fillStyle = 'rgba(255,244,220,0.5)'; ctx.fillRect(tr.x0 + 16, y0, 5, y1 - y0); ctx.fillRect(tr.x1 - 21, y0, 5, y1 - y0);
+  ctx.fillStyle = 'rgba(255,244,220,0.15)';
+  for (let k = 1; k < 4; k++) { const x = tr.x0 + (tr.x1 - tr.x0) * k / 4; for (let y = Math.floor(y0 / 120) * 120; y < y1; y += 120) ctx.fillRect(x - 2, y, 4, 60); }
+  if (tr.startY && tr.startY > c.y - 60 && tr.startY < c.y + H + 60) {
+    checker(tr.x0 + 21, tr.startY, tr.x1 - tr.x0 - 42, 24, 12);
+    txt('출발선', (tr.x0 + tr.x1) / 2, tr.startY + 52, 28, 'rgba(255,244,220,0.45)', 'center', { weight: 900 });
+  }
+}
+function drawCliff(s) {
+  const c = G.cam; if (s.x > c.x + W || s.x + s.w < c.x || s.y > c.y + H || s.y + s.h < c.y) return;
+  const y0 = Math.max(s.y, c.y - 10), y1 = Math.min(s.y + s.h, c.y + H + 10);
+  const left = s.x === 0, inner = left ? s.x + s.w : s.x;
+  ctx.fillStyle = '#5a2019'; ctx.fillRect(s.x, y0, s.w, y1 - y0);
+  for (let y = Math.floor(y0 / 58) * 58; y < y1; y += 58) {
+    const k = (Math.round(y / 58) * 7919 + (left ? 3 : 11)) % 97;
+    ctx.fillStyle = k % 3 ? 'rgba(140,58,40,0.5)' : 'rgba(60,18,16,0.5)';
+    ctx.fillRect(s.x + (k % 5) * 8, y + (k % 23), Math.max(10, s.w - (k % 7) * 10 - (k % 5) * 8), 10 + (k % 4) * 4);
+  }
+  ctx.fillStyle = '#7d3325'; ctx.fillRect(left ? inner - 26 : inner, y0, 26, y1 - y0);
+  ctx.fillStyle = '#e08a5e'; ctx.fillRect(left ? inner - 5 : inner, y0, 5, y1 - y0);
+  ctx.fillStyle = 'rgba(40,10,10,0.3)'; ctx.fillRect(left ? inner : inner - 14, y0, 14, y1 - y0);
+}
+// 가속 발판: 출전 금지 중에는 꺼져 있다(화성 태생 주자만 쓴다)
+function drawBoost(b) {
+  const c = G.cam; if (b.y < c.y - 60 || b.y > c.y + H + 60) return;
+  const on = !G.restricted, w = 150, h = 60;
+  ctx.save(); ctx.translate(b.x, b.y);
+  rr(-w / 2, -h / 2, w, h, 14); ctx.fillStyle = on ? 'rgba(20,70,66,0.92)' : 'rgba(44,38,66,0.85)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = on ? C.tealL : '#6b668f'; ctx.stroke();
+  ctx.save(); rr(-w / 2 + 4, -h / 2 + 4, w - 8, h - 8, 10); ctx.clip();
+  const p = on ? (G.t * 1.8) % 1 : 0;
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = on ? C.tealL : '#8e87bd';
+  for (let k = -1; k < 3; k++) { const yy = 22 - k * 20 - p * 20; ctx.globalAlpha = on ? 0.95 : 0.3; ctx.beginPath(); ctx.moveTo(-28, yy + 9); ctx.lineTo(0, yy - 9); ctx.lineTo(28, yy + 9); ctx.stroke(); }
+  ctx.restore(); ctx.globalAlpha = 1;
+  if (!on) { rr(34, -12, 36, 24, 8); ctx.fillStyle = 'rgba(90,25,30,0.9)'; ctx.fill(); txt('꺼짐', 52, 1, 13, '#ffc2b8', 'center', { weight: 600 }); }
+  ctx.restore();
+}
+function drawDeadDivider(d) {
+  const c = G.cam; if (d.y0 > c.y + H + 20 || d.y1 < c.y - 20) return;
+  ctx.fillStyle = 'rgba(40,36,70,0.5)'; ctx.fillRect(d.x - 3, d.y0, 6, d.y1 - d.y0);
+  ctx.lineWidth = 2; ctx.strokeStyle = C.ink;
+  for (let y = d.y0 + 10; y <= d.y1; y += 60) { ctx.fillStyle = '#4d4777'; rr(d.x - 9, y - 6, 18, 14, 4); ctx.fill(); ctx.stroke(); }
+  txt('꺼진 분리선', d.x + 18, d.y0 + 62, 15, 'rgba(255,244,220,0.6)', 'left', { weight: 600 });
+}
+function drawPen(p) {
+  const c = G.cam; if (p.y > c.y + H + 20 || p.y + p.h < c.y - 40) return;
+  const on = G.restricted;
+  ctx.save();
+  rr(p.x, p.y, p.w, p.h, 18); ctx.fillStyle = on ? 'rgba(90,25,30,0.22)' : 'rgba(20,70,60,0.16)'; ctx.fill();
+  ctx.setLineDash([16, 10]); ctx.lineWidth = 4; ctx.strokeStyle = on ? 'rgba(255,107,107,0.85)' : 'rgba(95,227,161,0.5)'; ctx.stroke(); ctx.setLineDash([]);
+  const label = on ? '지구 출신 대기 구역 · 출전 금지' : '누구나 출전!';
+  setFont(17, 600); const tw = ctx.measureText(label).width + 28;
+  rr(p.x + p.w / 2 - tw / 2, p.y - 16, tw, 32, 16); ctx.fillStyle = on ? 'rgba(70,25,25,0.94)' : 'rgba(20,60,50,0.94)'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = on ? C.bad : C.good; ctx.stroke();
+  txt(label, p.x + p.w / 2, p.y + 1, 17, on ? '#ffc2b8' : '#c8ffe4', 'center', { weight: 600 });
+  ctx.restore();
+}
+// 출전 금지 차단막: 켜져 있으면 빨간 줄무늬 막대(나만 막힘), 꺼지면 열린 문
+function drawBarrier(w) {
+  const c = G.cam;
+  if (w.x > c.x + W + 40 || w.x + w.w < c.x - 40 || w.y > c.y + H + 60 || w.y + w.h < c.y - 60) return;
+  const a = w.active ? 1 : Math.max(0, w.fade), y = w.y, h = w.h;
+  ctx.save();
+  if (a > 0) {
+    ctx.globalAlpha = a;
+    ctx.fillStyle = 'rgba(224,87,62,0.2)'; ctx.fillRect(w.x, y - 12, w.w, h + 24);
+    ctx.save(); ctx.beginPath(); ctx.rect(w.x, y - 2, w.w, h + 4); ctx.clip();
+    ctx.fillStyle = '#e0573e'; ctx.fillRect(w.x, y - 2, w.w, h + 4);
+    ctx.fillStyle = '#fff4dc';
+    const off = (G.t * 40) % 44;
+    for (let x = w.x - 44 + off; x < w.x + w.w + 22; x += 44) { ctx.beginPath(); ctx.moveTo(x, y + h + 2); ctx.lineTo(x + 14, y + h + 2); ctx.lineTo(x + 28, y - 2); ctx.lineTo(x + 14, y - 2); ctx.closePath(); ctx.fill(); }
+    ctx.restore();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.strokeRect(w.x, y - 2, w.w, h + 4);
+    if (w.w > 230) for (let x = w.x + 120; x < w.x + w.w - 80; x += 330) {
+      rr(x - 58, y - 38, 116, 26, 13); ctx.fillStyle = 'rgba(70,25,25,0.94)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.bad; ctx.stroke();
+      txt('출전 금지', x, y - 24, 15, '#ffd0c8', 'center', { weight: 900 });
+    }
+    ctx.globalAlpha = 1;
+  } else { ctx.fillStyle = 'rgba(95,227,161,0.2)'; ctx.fillRect(w.x, y + 5, w.w, 8); }
+  [w.x, w.x + w.w].forEach(px => {
+    ctx.fillStyle = '#3a3566'; rr(px - 8, y - 18, 16, 46, 5); ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke();
+    ctx.fillStyle = w.active ? C.red : C.good; circle(px, y - 9, 5); ctx.fill(); ctx.stroke();
+  });
+  ctx.restore();
+}
+// 지나갈 수 있는 틈을 청록 화살표로 보여 준다
+function drawBarGaps() {
+  if (!G.L.barGaps || !G.restricted) return;
+  const p = (G.t * 1.6) % 1;
+  for (const g of G.L.barGaps) {
+    if (g.y < G.cam.y - 60 || g.y > G.cam.y + H + 60) continue;
+    ctx.fillStyle = 'rgba(159,245,234,0.13)'; ctx.fillRect(g.x - g.w / 2 + 12, g.y - 70, g.w - 24, 140);
+    ctx.fillStyle = C.tealL;
+    for (let k = 0; k < 3; k++) { const yy = g.y + 52 - k * 36 - p * 36; ctx.globalAlpha = Math.max(0, 0.85 - k * 0.22 - p * 0.2); ctx.beginPath(); ctx.moveTo(g.x, yy - 12); ctx.lineTo(g.x + 22, yy + 9); ctx.lineTo(g.x - 22, yy + 9); ctx.closePath(); ctx.fill(); }
+    ctx.globalAlpha = 1;
+    txt('틈', g.x, g.y + 86, 18, C.tealL, 'center', { weight: 900, stroke: C.ink, sw: 4 });
+  }
+}
+function drawStartGate(w) {
+  const c = G.cam; if (w.y > c.y + H + 140 || w.y < c.y - 60) return;
+  const cx = w.x + w.w / 2, open = !w.active;
+  ctx.save(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink;
+  [w.x - 4, w.x + w.w + 4].forEach(px => { ctx.fillStyle = '#e8e2d6'; rr(px - 13, w.y - 96, 26, 122, 8); ctx.fill(); ctx.stroke(); ctx.fillStyle = open ? C.good : C.red; circle(px, w.y - 78, 7); ctx.fill(); ctx.stroke(); });
+  ctx.fillStyle = '#e8e2d6'; rr(w.x - 4, w.y - 112, w.w + 8, 26, 10); ctx.fill(); ctx.stroke();
+  const label = open ? '협곡 레이스 · 누구나 출발!' : '협곡 레이스 · 화성 태생만 출전';
+  setFont(22, 900); const tw = ctx.measureText(label).width + 44;
+  rr(cx - tw / 2, w.y - 134, tw, 48, 16); ctx.fillStyle = open ? 'rgba(20,60,50,0.96)' : 'rgba(70,25,25,0.96)'; ctx.fill(); ctx.strokeStyle = open ? C.good : C.bad; ctx.stroke();
+  txt(label, cx, w.y - 109, 22, open ? '#c8ffe4' : '#ffd0c8', 'center', { weight: 900 });
   ctx.restore();
 }
 function fieldRecords() { return D.records.filter(r => r.stage === G.def.id && r.id !== G.L.bossChip); }
@@ -2128,6 +2548,8 @@ function drawRecordGate(w) {
 }
 function drawWall(w) {
   if (w.recordGate) { drawRecordGate(w); return; }
+  if (w.barrier) { drawBarrier(w); return; }
+  if (w.startGate) drawStartGate(w);
   const a = w.active ? 1 : Math.max(0, w.fade);
   if (a <= 0) return;
   const c = G.cam;
@@ -2193,7 +2615,7 @@ function drawOffscreenTargets() {
 function drawGenLinks(g) {
   if (!g.alive) return;
   for (const w of G.walls) {
-    if (!w.active || !w.gens.includes(g.id)) continue;
+    if (!w.active || w.barrier || !w.gens.includes(g.id)) continue;
     const tx = clamp(g.x, w.x, w.x + w.w), ty = clamp(g.y, w.y, w.y + w.h);
     ctx.strokeStyle = 'rgba(255,177,46,0.45)'; ctx.lineWidth = 3; ctx.setLineDash([8, 10]); ctx.lineDashOffset = -G.t * 40;
     ctx.beginPath(); ctx.moveTo(g.x, g.y - 30); ctx.lineTo(tx, ty); ctx.stroke(); ctx.setLineDash([]);
@@ -2300,14 +2722,30 @@ function drawLasers(b) {
         ctx.fillStyle = 'rgba(255,190,60,0.85)'; ctx.fillRect(l.x - 13, y0, 26, a.h - y0);
         ctx.fillStyle = '#fff6d6'; ctx.fillRect(l.x - 4, y0, 8, a.h - y0);
       }
+    } else if (l.kind === 'area') {
+      const y0 = 430, hh = a.h - y0;
+      [[a.x, l.x0], [l.x1, a.x + a.w]].forEach(([x0, x1]) => {
+        ctx.fillStyle = l.warn ? 'rgba(255,90,90,' + (0.14 + 0.12 * Math.sin(G.t * 24)) + ')' : 'rgba(224,87,62,0.55)'; ctx.fillRect(x0, y0, x1 - x0, hh);
+        if (!l.warn) { ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, hh); ctx.clip(); ctx.strokeStyle = 'rgba(255,244,220,0.35)'; ctx.lineWidth = 10; for (let x = x0 - hh; x < x1; x += 46) { ctx.beginPath(); ctx.moveTo(x, y0 + hh); ctx.lineTo(x + hh, y0); ctx.stroke(); } ctx.restore(); }
+      });
+      ctx.fillStyle = 'rgba(95,227,161,' + (l.warn ? 0.16 + 0.1 * Math.sin(G.t * 10) : 0.12) + ')'; ctx.fillRect(l.x0, y0, l.x1 - l.x0, hh);
+      ctx.strokeStyle = C.good; ctx.lineWidth = 4; ctx.setLineDash([12, 8]); ctx.strokeRect(l.x0, y0, l.x1 - l.x0, hh); ctx.setLineDash([]);
+      txt(l.warn ? '여기로!' : '안전', (l.x0 + l.x1) / 2, y0 + 30, 24, C.good, 'center', { weight: 900, stroke: C.ink, sw: 5 });
     } else if (l.kind === 'h') {
       const segs = [[a.x, l.gap - 95], [l.gap + 95, a.x + a.w]];
       segs.forEach(([x0, x1]) => {
         if (l.warn) { ctx.fillStyle = 'rgba(255,90,90,' + (0.25 + 0.25 * Math.sin(G.t * 30)) + ')'; ctx.fillRect(x0, l.y - 3, x1 - x0, 6); }
         else {
+          if (l.bar) {
+            ctx.fillStyle = 'rgba(224,87,62,0.28)'; ctx.fillRect(x0, l.y - 22, x1 - x0, 44);
+            ctx.save(); ctx.beginPath(); ctx.rect(x0, l.y - 11, x1 - x0, 22); ctx.clip(); ctx.fillStyle = '#e0573e'; ctx.fillRect(x0, l.y - 11, x1 - x0, 22); ctx.fillStyle = '#fff4dc';
+            for (let x = x0 - 44 + (G.t * 60) % 44; x < x1 + 22; x += 44) { ctx.beginPath(); ctx.moveTo(x, l.y + 11); ctx.lineTo(x + 14, l.y + 11); ctx.lineTo(x + 28, l.y - 11); ctx.lineTo(x + 14, l.y - 11); ctx.closePath(); ctx.fill(); }
+            ctx.restore(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.strokeRect(x0, l.y - 11, x1 - x0, 22);
+          } else {
           ctx.fillStyle = 'rgba(255,160,40,0.3)'; ctx.fillRect(x0, l.y - 22, x1 - x0, 44);
           ctx.fillStyle = 'rgba(255,190,60,0.85)'; ctx.fillRect(x0, l.y - 10, x1 - x0, 20);
           ctx.fillStyle = '#fff6d6'; ctx.fillRect(x0, l.y - 3, x1 - x0, 6);
+          }
         }
       });
       ctx.strokeStyle = 'rgba(159,245,234,0.9)'; ctx.lineWidth = 3; ctx.setLineDash([6, 6]);
@@ -2360,8 +2798,8 @@ function drawHUD() {
   rr(98, 74, hpw * Math.min(1, G.xp / xpNeed(G.level)), 9, 5); ctx.fillStyle = C.teal; ctx.fill();
   txt('XP', 98, 93, 11, '#bdb6e6', 'left', { weight: 700 });
   if (G.L.restrict && G.mode !== 'brief' && G.mode !== 'rules') {
-    if (G.restricted) { panel(14, 110, 340, 34, { fill: 'rgba(90,25,30,0.88)', stroke: C.bad, r: 17, lw: 2 }); txt('지구 출신 · 이동 느림 · 대시 금지', 184, 127, 16, '#ffd0c8', 'center', { weight: 600 }); }
-    else if (G.t - G.freeT < 6) { panel(14, 110, 340, 34, { fill: 'rgba(20,70,60,0.9)', stroke: C.good, r: 17, lw: 2 }); txt('제한 해제! 어디든 갈 수 있어요', 184, 127, 16, '#c8ffe4', 'center', { weight: 600 }); }
+    if (G.restricted) { panel(14, 110, 340, 34, { fill: 'rgba(90,25,30,0.88)', stroke: C.bad, r: 17, lw: 2 }); txt(G.L.restrict.hud || '지구 출신 · 이동 느림 · 대시 금지', 184, 127, 16, '#ffd0c8', 'center', { weight: 600 }); }
+    else if (G.t - G.freeT < 6) { panel(14, 110, 340, 34, { fill: 'rgba(20,70,60,0.9)', stroke: C.good, r: 17, lw: 2 }); txt(G.L.restrict.hudFree || '제한 해제! 어디든 갈 수 있어요', 184, 127, 16, '#c8ffe4', 'center', { weight: 600 }); }
   }
   const recs = D.records.filter(r => r.stage === G.def.id), got = recs.filter(r => save.records[r.id]).length;
   panel(W - 304, 12, 236, 70, { fill: 'rgba(27,24,56,0.85)', r: 16 });
@@ -2382,6 +2820,7 @@ function drawHUD() {
   let obj = '';
   if (G.boss && !G.boss.dead) obj = '';
   else if (G.coach && G.coach.steps[G.coach.step]) obj = '지금 할 일 ▶ ' + G.coach.steps[G.coach.step].title;
+  else if (G.race && G.race.on) obj = '지금 할 일 ▶ 차단막의 틈으로 달리기! 뒤처지면 다쳐요 ▲';
   else if (G.zoneIdx >= 0) {
     const w = wallById(G.zones[G.zoneIdx].exit);
     const left = w.gens.filter(id => G.gens.find(g => g.id === id).alive).length;
@@ -2444,7 +2883,7 @@ function drawControls() {
       [0, 1, 2, 3].forEach(k => { const a = k * Math.PI / 2; ctx.save(); ctx.translate(150 + Math.cos(a) * 52, H - 150 + Math.sin(a) * 52); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-5, -8); ctx.lineTo(-5, 8); ctx.closePath(); ctx.fill(); ctx.restore(); });
       txt('끌어서 이동', 150, H - 62, 16, C.cream, 'center', { weight: 600, stroke: C.ink, sw: 4 });
     }
-    touchBtn(W - 120, H - 120, 70, '대시', dashR, () => { touchAct.dash = true; }, G.restricted);
+    touchBtn(W - 120, H - 120, 70, '대시', dashR, () => { touchAct.dash = true; }, G.restricted && G.L.restrict.noDash);
     touchBtn(W - 270, H - 86, 54, D.skills[sk].name.split(' ').pop(), skR, () => { touchAct.skill = true; });
     if (G.skills.length > 1) touchBtn(W - 262, H - 198, 30, '⇄', 0, () => { touchAct.swap = true; });
   } else {
@@ -2533,7 +2972,7 @@ function drawMissionList() {
   const recs = fieldRecords(), got = recs.filter(r => save.records[r.id]).length;
   const rounds = G.def.boss.rounds.length;
   const items = [
-    { t: G.L.restrict ? '레이저 벽·분리선 끄기' : '레이저 벽 끄기', v: wallsDone + '/' + mainWalls.length, done: wallsDone === mainWalls.length },
+    { t: G.L.restrict ? (G.L.restrict.mission || '레이저 벽·분리선 끄기') : '레이저 벽 끄기', v: wallsDone + '/' + mainWalls.length, done: wallsDone === mainWalls.length },
     { t: '정착민 구하기', v: G.stats.rescued + '/' + G.caps.length, done: G.stats.rescued === G.caps.length, opt: true },
     { t: '기록 칩 모두 모으기', v: got + '/' + recs.length, done: got === recs.length }
   ];
@@ -2570,7 +3009,7 @@ function drawBrief() {
   rr(110, 148, W - 220, 50, 25); ctx.fillStyle = 'rgba(44,200,182,0.16)'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.tealL; ctx.stroke();
   txt('목표  ' + (m.goal || d.goal), W / 2, 174, 23, C.tealL, 'center', { weight: 600 });
   txt('화면에 나오는 것', 96, 226, 19, '#cfc8f2', 'left', { weight: 600 });
-  const items = [
+  const items = G.L.legend || [
     { k: 'hero', n: '나 (정착촌 학생)', t: '공명기로 가장 가까운 적을 자동으로 쏴요' },
     { k: 'drone', n: '오더의 드론', t: '하얀 공 모양 기계. 주황 탄을 피하세요' },
     { k: 'gen', n: '발생기', t: '부수면 레이저 벽이 꺼져요 (노란 화살표)' },
@@ -2585,12 +3024,12 @@ function drawBrief() {
     txt(it.n, x + 106, y + 32, 22, C.cream, 'left', { weight: 900 });
     para(it.t, x + 106, y + 62, w - 118, 16, '#d8d1fa', 22, { weight: 600 });
   });
-  const flow = G.L.restrict ? ['발생기 부수기', '분리선 끄기', '기록 칩 모두 모으기', '보스를 증거로 반박'] : ['발생기 부수기', '레이저 벽 통과', '기록 칩 모두 모으기', '보스를 증거로 반박'];
-  const fw = 248, fg = 34, fx0 = W / 2 - (flow.length * fw + (flow.length - 1) * fg) / 2;
+  const flow = G.L.flow || (G.L.restrict ? ['발생기 부수기', '분리선 끄기', '기록 칩 모두 모으기', '보스를 증거로 반박'] : ['발생기 부수기', '레이저 벽 통과', '기록 칩 모두 모으기', '보스를 증거로 반박']);
+  const fg = flow.length > 4 ? 26 : 34, fw = Math.min(248, (1160 - (flow.length - 1) * fg) / flow.length), fx0 = W / 2 - (flow.length * fw + (flow.length - 1) * fg) / 2;
   flow.forEach((f, i) => {
     const x = fx0 + i * (fw + fg), y = 506, last = i === flow.length - 1;
     rr(x, y - 22, fw, 44, 22); ctx.fillStyle = last ? 'rgba(224,87,62,0.35)' : 'rgba(247,197,72,0.18)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = last ? C.red : C.mustard; ctx.stroke();
-    txt((i + 1) + '. ' + f, x + fw / 2, y, 19, C.cream, 'center', { weight: 600 });
+    txt((i + 1) + '. ' + f, x + fw / 2, y, flow.length > 4 ? 17 : 19, C.cream, 'center', { weight: 600 });
     if (!last) txt('▶', x + fw + fg / 2, y, 18, C.mustard, 'center');
   });
   const ctrl = touchUI() ? '이동: 왼쪽 화면 끌기  ·  공격: 자동  ·  대시(빨리 피하기)·공명 파동(탄 지우기): 오른쪽 아래 버튼' : '이동: WASD·방향키  ·  공격: 자동  ·  대시(빨리 피하기): Shift·Space  ·  공명 파동(탄 지우기): E';
@@ -2604,6 +3043,9 @@ function drawLegendIcon(k, x, y) {
   else if (k === 'gen') { ctx.save(); ctx.translate(x, y + 36); ctx.scale(0.62, 0.62); drawGen({ x: 0, y: 0, alive: true, hitT: 0, hp: 1, maxHp: 1, id: '', icon: true }); ctx.restore(); }
   else if (k === 'wall') { ctx.fillStyle = 'rgba(255,160,40,0.25)'; ctx.fillRect(x - 50, y - 16, 100, 32); ctx.fillStyle = 'rgba(255,177,46,0.75)'; ctx.fillRect(x - 50, y - 8, 100, 16); ctx.fillStyle = '#fff1c8'; ctx.fillRect(x - 50, y - 2, 100, 4); }
   else if (k === 'chip') drawChipIcon(x, y, 1.5, t);
+  else if (k === 'bar') { ctx.save(); ctx.beginPath(); ctx.rect(x - 50, y - 9, 100, 18); ctx.clip(); ctx.fillStyle = '#e0573e'; ctx.fillRect(x - 50, y - 9, 100, 18); ctx.fillStyle = '#fff4dc'; for (let xx = x - 70 + (t * 30) % 30; xx < x + 60; xx += 30) { ctx.beginPath(); ctx.moveTo(xx, y + 9); ctx.lineTo(xx + 10, y + 9); ctx.lineTo(xx + 20, y - 9); ctx.lineTo(xx + 10, y - 9); ctx.closePath(); ctx.fill(); } ctx.restore(); }
+  else if (k === 'boost') { ctx.strokeStyle = C.tealL; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; for (let i = 0; i < 3; i++) { const yy = y + 22 - i * 20 - ((t * 1.8) % 1) * 20; ctx.beginPath(); ctx.moveTo(x - 24, yy + 8); ctx.lineTo(x, yy - 8); ctx.lineTo(x + 24, yy + 8); ctx.stroke(); } }
+  else if (k === 'ejector') drawEnemy({ type: 'ejector', x, y, r: 20, t, spawnT: 0, flash: 0, hp: 1, maxHp: 1 }, t);
   else if (k === 'cap') { ctx.save(); ctx.translate(x, y + 14); ctx.scale(0.62, 0.62); drawCapsule({ x: 0, y: 0, look: LOOKS[0], t, freed: false, icon: true }); ctx.restore(); }
 }
 function drawBossIntro() {
@@ -2750,7 +3192,7 @@ function drawChange() {
   const show2 = Math.min(1, Math.max(0, (t - 1.6) * 2));
   ctx.globalAlpha = a * show2;
   if (img) { ctx.save(); rr(rx, iy, rw, ih, 16); ctx.clip(); drawCover(img, rx, iy, rw, ih); ctx.restore(); rr(rx, iy, rw, ih, 16); ctx.lineWidth = 3; ctx.strokeStyle = C.cream; ctx.stroke(); }
-  else { rr(rx, iy, rw, ih, 16); ctx.fillStyle = '#2e2b52'; ctx.fill(); txt('모두의 길', rx + rw / 2, iy + ih / 2, 40, C.tealL, 'center', { weight: 900 }); }
+  else { rr(rx, iy, rw, ih, 16); ctx.fillStyle = '#2e2b52'; ctx.fill(); txt(ch.alt || '모두의 길', rx + rw / 2, iy + ih / 2, 40, C.tealL, 'center', { weight: 900 }); }
   para(ch.mars, rx, iy + ih + 30, rw, 26, C.cream, 34, { weight: 600 });
   ctx.globalAlpha = a;
   txt('▶', 640, ly + 180, 40, C.mustard, 'center', { weight: 900 });
