@@ -64,7 +64,7 @@ function tryLoad(store, key, base, exts) {
   img.onerror = () => { i++; if (i < exts.length) img.src = base + '.' + exts[i]; };
   img.src = base + '.' + exts[0];
 }
-['title', 'logo', 'card', 'op1', 'op2', 'op3', 'map', 'after1', 'after2', 'after3', 'after4', 'after5', 'boss1', 'boss2', 'boss3', 'boss4', 'boss5', 'boss_final', 'hero', 'ending1', 'ending2']
+['title', 'logo', 'card', 'op0a', 'op0b', 'op0c', 'op1', 'op2', 'op3', 'map', 'after1', 'after2', 'after3', 'after4', 'after5', 'boss1', 'boss2', 'boss3', 'boss4', 'boss5', 'boss_final', 'hero', 'ending1', 'ending2']
   .forEach(n => tryLoad(IMG, n, 'img/' + n, ['webp', 'jpg', 'png']));
 (function loadPhotos() {
   const keys = new Set();
@@ -928,7 +928,7 @@ const LAYOUTS_COACH = {
     const gensC = () => G.gens.filter(g => g.alive && wC().gens.includes(g.id));
     return [
       { title: '먼저 움직여 보세요', sub: () => touchUI() ? '왼쪽 화면을 손가락으로 끌면 움직여요' : 'WASD 또는 방향키로 움직여요', done: c => c.moved > 160 },
-      { title: '나는 지구 출신이에요', sub: () => '지구 출신은 이 좁은 구역에만 있어야 해요. 느리게 움직이고, 대시도 막혀 있어요', done: () => false, skipAfter: 5.5 },
+      { title: '나는 지구 출신이에요', sub: () => '지구 출신은 이 좁은 구역에만 있어야 해요. 느리게 움직이고, 대시도 막혀 있어요', done: c => c.st > 2, skipAfter: 2 },
       { title: '공명 파동을 써 보세요', sub: () => touchUI() ? "오른쪽 아래 '파동' 버튼: 둘레의 주황 탄을 지우고 드론을 밀어내요" : 'E 키: 둘레의 주황 탄을 지우고 드론을 밀어내요 (7초마다 쓸 수 있어요)',
         done: () => G.skillUsed, skipAfter: 15 },
       { title: '드론에게 다가가 보세요', sub: () => '하얀 공 모양 드론이 오더의 기계예요. 공격은 자동! 가까이 가면 알아서 쏴요', done: () => G.stats.kills >= 1,
@@ -946,23 +946,46 @@ function updateCoach(dt) {
   c.moved += dist(P.x, P.y, c.lx, c.ly); c.lx = P.x; c.ly = P.y;
   c.st += dt; if (c.flash > 0) c.flash -= dt * 2;
   const step = c.steps[c.step];
-  if (step && (step.done(c) || (step.skipAfter && c.st > step.skipAfter))) { c.step++; c.st = 0; c.flash = 1; c.showAt = G.t; Sound.play('ui'); }
+  if (step && (step.done(c) || (step.skipAfter && c.st > step.skipAfter))) { c.step++; c.st = 0; c.flash = 1; c.showAt = G.t; Sound.play('ui'); const ns = c.steps[c.step]; if (ns) showNotice(ns.title, ns.sub(), '▶'); }
   if (c.step >= c.steps.length) G.coach = null;
 }
-function showTip(key, title, sub, dur) {
+// 안내: 화면 가운데에 잠깐 떴다가 저절로 사라진다. 그동안 게임은 멈춘다
+function showNotice(title, sub, badge) {
+  const len = (title + (sub || '')).length;
+  const n = { title, sub: sub || '', badge: badge || '!', t: 0, dur: clamp(1.6 + len * 0.045, 2.4, 4.6) };
+  G.noticeQ = G.noticeQ || [];
+  G.noticeQ.push(n);
+}
+function pumpNotice() {
+  if (G.mode === 'play' && G.noticeQ && G.noticeQ.length && !G.P.dead) { G.notice = G.noticeQ.shift(); G.mode = 'notice'; }
+}
+function drawNotice() {
+  const n = G.notice; if (!n) return;
+  const a = Math.max(0, Math.min(1, n.t * 6, (n.dur - n.t) * 4));
+  ctx.save(); ctx.globalAlpha = a;
+  dim(0.32);
+  const lines = wrap(n.sub, 760, 27, 600), w = 900, h = 120 + lines.length * 38, x = W / 2 - w / 2, y = H / 2 - h / 2 - 30;
+  panel(x, y, w, h, { fill: 'rgba(20,17,46,0.96)', stroke: C.mustard, r: 24, lw: 4 });
+  ctx.fillStyle = n.badge === '!' ? C.tealL : C.mustard; circle(x + 62, y + 60, 34); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt(n.badge, x + 62, y + 61, n.badge.length > 1 ? 22 : 34, C.ink, 'center', { weight: 900 });
+  txt(n.title, x + 116, y + 60, 40, C.amberL, 'left', { weight: 900 });
+  lines.forEach((l, i) => txt(l, x + 116, y + 112 + i * 38, 27, C.cream, 'left', { weight: 600 }));
+  rr(x + 30, y + h - 14, (w - 60) * Math.min(1, n.t / n.dur), 5, 3); ctx.fillStyle = 'rgba(159,245,234,0.7)'; ctx.fill();
+  ctx.restore();
+}
+function showTip(key, title, sub) {
   if (G.tipsSeen[key]) return;
   if (G.coach && G.coach.step < 2 && key !== 'wall') return;
   G.tipsSeen[key] = true;
-  G.tip = { title, sub, t: 0, dur: dur || 4.5 };
+  showNotice(title, sub, '!');
 }
 function updateTips(dt) {
   const P = G.P;
-  if (G.tip) { G.tip.t += dt; if (G.tip.t > G.tip.dur) G.tip = null; }
   if (P.dead) return;
   if (G.gems.some(g => dist(g.x, g.y, P.x, P.y) < 300)) showTip('gem', '청록 조각은 경험치예요', '드론을 물리치면 떨어져요. 가까이 가면 저절로 모이고, 모으면 레벨 업!');
   if (G.chips.some(c => !c.got && dist(c.x, c.y, P.x, P.y) < 280)) showTip('chip', '기록 칩이에요', '주우면 실제 지구 역사 기록을 보여 줘요. 보스와 싸울 때 증거가 돼요');
   if (G.caps.some(c => !c.freed && dist(c.x, c.y, P.x, P.y) < 320)) showTip('cap', '갇힌 정착민이에요', '캡슐에 몸으로 닿으면 구출! 동료가 되어 함께 싸워요');
-  if (G.zoneIdx === 1 && G.restricted) showTip('div', '분리선 발생기를 찾아요!', '이걸 부수면 분리선이 꺼지고, 지구 출신에게 걸린 제한도 풀려요', 6);
+  if (G.zoneIdx === 1 && G.restricted) showTip('div', '분리선 발생기를 찾아요!', '이걸 부수면 분리선이 꺼지고, 지구 출신에게 걸린 제한도 풀려요');
 }
 
 function newRun(stageId) {
@@ -1282,27 +1305,29 @@ function endRebutCard() { if (G.mode !== 'rebut' || G.rebutT < 1) return; G.mode
 function drawRebutCard() {
   modalStart(); dim(0.7);
   const r = G.rebut, t = G.rebutT, pop = Math.min(1, t * 5);
+  const gl = wrap(r.opt.good || '', 560, 40, 900);
+  const w = 980, x = W / 2 - w / 2, rowH = Math.max(300, gl.length * 52 + 90), h = 150 + rowH + 100, y = H / 2 - h / 2;
   ctx.save(); ctx.globalAlpha = pop;
-  panel(110, 50, W - 220, 620, { fill: 'rgba(16,40,38,0.97)', stroke: C.good, r: 26, lw: 5 });
+  panel(x, y, w, h, { fill: 'rgba(16,40,38,0.97)', stroke: C.good, r: 26, lw: 5 });
   const sc = 1 + Math.max(0, 0.3 - t) * 1.5;
-  ctx.save(); ctx.translate(W / 2, 120); ctx.scale(sc, sc); txt('반박 성공!', 0, 0, 68, C.good, 'center', { weight: 900, stroke: C.ink, sw: 10 }); ctx.restore();
+  ctx.save(); ctx.translate(W / 2, y + 62); ctx.scale(sc, sc); txt('반박 성공!', 0, 0, 66, C.good, 'center', { weight: 900, stroke: C.ink, sw: 10 }); ctx.restore();
   const cl = '「' + r.claim + '」';
-  setFont(26, 600); const cw = Math.min(ctx.measureText(cl).width, W - 320);
-  txt(cl, W / 2, 196, 26, '#c9c2ef', 'center', { weight: 600 });
-  ctx.strokeStyle = C.bad; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(W / 2 - cw / 2 - 6, 198); ctx.lineTo(W / 2 + cw / 2 + 6, 198); ctx.stroke();
-  const cx = 300, cy = 370;
-  ctx.save(); circle(cx, cy, 92); ctx.clip();
+  setFont(26, 600); const cw = Math.min(ctx.measureText(cl).width, w - 80);
+  txt(cl, W / 2, y + 126, 26, '#c9c2ef', 'center', { weight: 600 });
+  ctx.strokeStyle = C.bad; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(W / 2 - cw / 2 - 6, y + 128); ctx.lineTo(W / 2 + cw / 2 + 6, y + 128); ctx.stroke();
+  const cx = x + 190, cy = y + 150 + rowH / 2 - 26, rad = 118;
+  ctx.save(); circle(cx, cy, rad); ctx.clip();
   const img = photoOf(r.opt);
-  if (img) drawCover(img, cx - 92, cy - 92, 184, 184);
-  else { ctx.fillStyle = '#3b3570'; ctx.fillRect(cx - 92, cy - 92, 184, 184); const rec = r.opt.record && recordById(r.opt.record); txt(rec ? rec.year : '기록', cx, cy, 34, C.amberL, 'center', { weight: 900 }); }
+  if (img) drawCover(img, cx - rad, cy - rad, rad * 2, rad * 2);
+  else { ctx.fillStyle = '#3b3570'; ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2); const rec = r.opt.record && recordById(r.opt.record); txt(rec ? rec.year : '기록', cx, cy, 40, C.amberL, 'center', { weight: 900 }); }
   ctx.restore();
-  ctx.lineWidth = 6; ctx.strokeStyle = C.good; circle(cx, cy, 92); ctx.stroke();
-  txt('증거', cx, cy + 122, 20, '#bff5d6', 'center', { weight: 600 });
-  txt(r.opt.label, cx, cy + 154, 28, C.cream, 'center', { weight: 900 });
-  para(r.opt.good || '', 450, 300, W - 600, 34, C.cream, 46, { weight: 900 });
-  txt('방어막이 깨졌어요! 지금 보스를 공격하세요', 450, 520, 25, C.tealL, 'left', { weight: 600 });
+  ctx.lineWidth = 6; ctx.strokeStyle = C.good; circle(cx, cy, rad); ctx.stroke();
+  txt('증거 · ' + r.opt.label, cx, cy + rad + 32, 26, C.cream, 'center', { weight: 900 });
+  const tx = x + 380, ty = y + 150 + rowH / 2 - (gl.length * 52 + 60) / 2 + 20;
+  gl.forEach((l, i) => txt(l, tx, ty + i * 52, 40, C.cream, 'left', { weight: 900 }));
+  txt('방어막이 깨졌어요! 지금 보스를 공격하세요', tx, ty + gl.length * 52 + 26, 26, C.tealL, 'left', { weight: 600 });
   ctx.restore();
-  if (t > 1) button(W / 2 - 170, 580, 340, 66, '공격하러 가기!', () => endRebutCard(), { size: 30 });
+  if (t > 1) button(W / 2 - 170, y + h - 86, 340, 64, '공격하러 가기!', () => endRebutCard(), { size: 30 });
 }
 function startRebut() { if (G.mode !== 'claim' || G.claimT < 0.8) return; G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 1); }
 function drawClaimCard() {
@@ -1434,7 +1459,8 @@ function updateStage(dt) {
   if (G.mode === 'brief') {
     G.briefT += dt;
     if (G.briefT > 0.5 && (hit('Enter') || hit('Space') || hit('NumpadEnter'))) startPlay();
-  } else if (G.mode === 'play') updatePlay(dt);
+  } else if (G.mode === 'play') { updatePlay(dt); pumpNotice(); }
+  else if (G.mode === 'notice') { G.notice.t += dt; if (G.notice.t >= G.notice.dur || (G.notice.t > 1 && (taps.length || hit('Enter')))) { G.notice = null; G.mode = 'play'; } }
   else if (G.mode === 'bossIntro') {
     G.introT += dt; updateFx(dt);
     if (G.introT > 0.7 && (hit('Enter') || hit('Space') || taps.length)) { G.mode = 'play'; G.tip = null; }
@@ -1455,8 +1481,8 @@ function updateStage(dt) {
 function startPlay() {
   if (G.mode !== 'brief') return;
   G.mode = 'play';
-  if (G.coach) G.coach.showAt = G.t;
-  banner('STAGE ' + G.def.id + ' · ' + G.def.name, '', C.mustard, 2.2);
+  if (G.coach) { G.coach.showAt = G.t; const s0 = G.coach.steps[0]; showNotice(s0.title, s0.sub(), '▶'); }
+  else banner('STAGE ' + G.def.id + ' · ' + G.def.name, '', C.mustard, 2.2);
 }
 function updatePlay(dt) {
   const P = G.P, st = G.st, L = G.L;
@@ -1595,9 +1621,8 @@ function updatePlay(dt) {
     c.t += dt;
     if (!c.freed && !P.dead && dist(c.x, c.y, P.x, P.y) < 54) {
       c.freed = true; G.stats.rescued++;
-      showAllyTip();
       G.settlers.push({ look: c.look, x: c.x, y: c.y, t: 0, fireT: 0.5, aim: -Math.PI / 2, moving: false });
-      burst(c.x, c.y, C.tealL, 24, 220); addText(c.x, c.y - 50, '정착민이 함께해요!', C.tealL, 22);
+      burst(c.x, c.y, C.tealL, 24, 220); showAllyTip();
       Sound.play('good');
     }
   }
@@ -1659,14 +1684,13 @@ function damageGen(g, dmg) {
   }
 }
 function showAllyTip() {
-  if (G.tipsSeen.ally) return;
-  G.tipsSeen.ally = true;
-  G.tip = { title: '동료가 생겼어요! (연대)', sub: '함께 쏘고, 동료 1명마다 공격력 +10%, 10초에 한 번 대신 막아 줘요. 힘을 모으는 것이 연대예요', t: 0, dur: 7 };
+  const n = G.settlers.length;
+  if (!G.tipsSeen.ally) { G.tipsSeen.ally = true; showNotice('정착민이 함께해요!', '동료는 같이 쏘고, 1명마다 공격력 +10%, 10초에 한 번 대신 막아 줘요. 힘을 모으는 것을 연대라고 해요', '+'); }
+  else showNotice('정착민이 함께해요!', '동료 ' + n + '명 · 공격 +' + n * 10 + '% · 막아 주기', '+');
 }
 function liberate() {
   G.restricted = false; G.freeT = G.t;
-  banner('분리선 해제!', '이제 어디든 갈 수 있어요. 이동 제한과 대시 금지가 풀렸어요!', C.tealL, 4.5);
-  G.tip = { title: '이제 대시를 쓸 수 있어요!', sub: (touchUI() ? '대시 버튼' : 'Shift 또는 Space') + ': 짧게 빨리 움직이고, 그동안은 탄에 맞지 않아요', t: 0, dur: 7 };
+  showNotice('분리선 해제!', '이제 어디든 갈 수 있어요. 대시도 쓸 수 있어요: ' + (touchUI() ? '대시 버튼' : 'Shift·Space') + '로 짧게 빨리 움직이고, 그동안은 탄에 맞지 않아요', '✓');
   G.shake = Math.max(G.shake, 12);
   burst(G.P.x, G.P.y, C.tealL, 30, 300);
   const P = G.P;
@@ -1674,6 +1698,8 @@ function liberate() {
   near.slice(0, 2).forEach(n => { n.joined = true; G.settlers.push({ look: n.look, x: n.x, y: n.y, t: 0, fireT: 0.5, aim: 0, moving: false }); addText(n.x, n.y - 50, '함께 가요!', C.tealL, 20); });
   G.npcs = G.npcs.filter(n => !n.joined);
   G.npcs.forEach(n => addText(n.x, n.y - 50, '야호!', C.mustard, 18));
+  G.tipsSeen.ally = true;
+  showNotice('화성 태생 주민도 함께해요!', '태어난 곳이 달라도 한 팀이에요. 동료 ' + G.settlers.length + '명 · 공격 +' + G.settlers.length * 10 + '% · 막아 주기', '+');
 }
 function updateNpcs(dt) {
   if (G.arenaLock) return;
@@ -1744,7 +1770,8 @@ function drawStage() {
   drawDust();
   drawOffscreenTargets();
   drawHUD();
-  if (G.mode === 'brief') drawBrief();
+  if (G.mode === 'notice') drawNotice();
+  else if (G.mode === 'brief') drawBrief();
   else if (G.mode === 'bossIntro') drawBossIntro();
   else if (G.mode === 'record') drawRecordCard();
   else if (G.mode === 'claim') drawClaimCard();
@@ -2306,7 +2333,7 @@ function drawHUD() {
   if (G.boss && !G.boss.dead) drawBossBar(G.boss);
   drawControls();
   if (G.banner) drawBanner(G.banner);
-  if (G.mode === 'play') drawCoachBar();
+
   if (G.toasts.length) drawToast(G.toasts[0]);
 }
 function drawHeart(x, y, full) {
@@ -2397,7 +2424,7 @@ function drawBanner(b) {
 }
 function toastDur(tt) { return tt.zone ? 2.4 : (G.toasts.length > 1 ? 4.5 : 6.5); }
 const COACH_SHOW = 5;
-function coachBarOn() { return !!G.coach && G.t - (G.coach.showAt || 0) < COACH_SHOW; }
+function coachBarOn() { return false; }
 function coachVisible() { return G.mode === 'play' && (G.tip || coachBarOn()); }
 function drawToast(tt) {
   const d = toastDur(tt), inT = Math.min(1, tt.t * 5), outT = Math.min(1, (d - tt.t) * 4);
@@ -2646,28 +2673,28 @@ function drawChange() {
     const show = Math.min(1, Math.max(0, (t - 0.5 - i * 0.5) * 3));
     if (show <= 0) return;
     ctx.globalAlpha = a * show;
-    const y = ly + 60 + i * 120;
-    rr(lx, y, lw, 108, 16); ctx.fillStyle = 'rgba(44,200,182,0.12)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(159,245,234,0.6)'; ctx.stroke();
-    txt(e[0], lx + 20, y + 54, 40, C.tealL, 'left', { weight: 900 });
+    const y = ly + 58 + i * 106;
+    rr(lx, y, lw, 94, 16); ctx.fillStyle = 'rgba(44,200,182,0.12)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(159,245,234,0.6)'; ctx.stroke();
+    txt(e[0], lx + 20, y + 47, 40, C.tealL, 'left', { weight: 900 });
     const el = wrap(e[1], lw - 150, 28, 600);
-    el.forEach((l, k) => txt(l, lx + 134, y + 54 + (k - (el.length - 1) / 2) * 36, 28, C.cream, 'left', { weight: 600 }));
+    el.forEach((l, k) => txt(l, lx + 134, y + 47 + (k - (el.length - 1) / 2) * 34, 28, C.cream, 'left', { weight: 600 }));
   });
   ctx.globalAlpha = a;
   // 오른쪽: 화성 (우리 이야기)
   const rx = 660, rw = W - 80 - rx + 40 - 40;
   rr(rx, ly, 220, 40, 20); ctx.fillStyle = C.orange; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
   txt('화성 · 우리 정착촌', rx + 110, ly + 20, 20, C.ink, 'center', { weight: 900 });
-  const img = IMG[ch.img], iy = ly + 60, ih = 250;
+  const img = IMG[ch.img], iy = ly + 58, ih = 214;
   const show2 = Math.min(1, Math.max(0, (t - 1.6) * 2));
   ctx.globalAlpha = a * show2;
   if (img) { ctx.save(); rr(rx, iy, rw, ih, 16); ctx.clip(); drawCover(img, rx, iy, rw, ih); ctx.restore(); rr(rx, iy, rw, ih, 16); ctx.lineWidth = 3; ctx.strokeStyle = C.cream; ctx.stroke(); }
   else { rr(rx, iy, rw, ih, 16); ctx.fillStyle = '#2e2b52'; ctx.fill(); txt('모두의 길', rx + rw / 2, iy + ih / 2, 40, C.tealL, 'center', { weight: 900 }); }
-  para(ch.mars, rx, iy + ih + 32, rw, 27, C.cream, 36, { weight: 600 });
+  para(ch.mars, rx, iy + ih + 30, rw, 26, C.cream, 34, { weight: 600 });
   ctx.globalAlpha = a;
-  txt('▶', 640, ly + 200, 40, C.mustard, 'center', { weight: 900 });
+  txt('▶', 640, ly + 180, 40, C.mustard, 'center', { weight: 900 });
   ctx.restore();
-  if (G.bossRec && t > 1.2) txt((G.bossRecFresh ? '새 기록 획득: ' : '기록: ') + G.bossRec.year + ' ' + G.bossRec.title + ' (기록 보관소에서 볼 수 있어요)', W / 2, H - 112, 20, C.tealL, 'center', { weight: 600 });
-  if (t > 2) button(W / 2 - 140, H - 96, 280, 60, '다음 ▶', () => { G.clearStep = 1; G.clearT = 0; ui.focus = 0; }, { size: 26 });
+  if (G.bossRec && t > 1.2) txt((G.bossRecFresh ? '새 기록 획득: ' : '기록: ') + G.bossRec.year + ' ' + G.bossRec.title + ' (기록 보관소에서 볼 수 있어요)', W / 2, H - 150, 21, C.tealL, 'center', { weight: 600 });
+  if (t > 2) button(W / 2 - 140, H - 112, 280, 62, '다음 ▶', () => { G.clearStep = 1; G.clearT = 0; ui.focus = 0; }, { size: 26 });
 }
 function drawClear() {
   if (G.clearStep === 0) { drawChange(); return; }
