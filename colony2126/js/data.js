@@ -132,7 +132,7 @@ window.COLONY_DATA = {
                 good: '노예제가 사라진 뒤에도 학교·버스·식당은 인종으로 나뉘었다!' },
               { label: '노예 해방 선언 1863', correct: false,
                 why: '노예제가 사라졌다는 사실은 오더의 말을 거드는 쪽이야. 차별이 남았다는 증거가 필요해.' },
-              { label: 'ILO 설립 1919', correct: false,
+              { label: 'ILO 설립 1919', photo: 's3_ilo', correct: false,
                 why: '국제 노동 기구는 노동 운동의 기록이야. 인종 차별과는 다른 이야기.' }
             ] },
           { claim: '차별은 마음의 문제다. 법으로는 바꿀 수 없다.',
@@ -141,7 +141,7 @@ window.COLONY_DATA = {
                 good: '1964년 민권법이 인종 차별을 불법으로 규정했다!' },
               { record: 'r1_sign', label: '인종 분리 표지판', correct: false,
                 why: '차별이 있었다는 증거일 뿐, 법이 바꿨다는 증거는 아니야.' },
-              { label: '8시간 노동 요구 1886', correct: false,
+              { label: '8시간 노동 요구 1886', photo: 's3_chicago', correct: false,
                 why: '시카고 노동자들의 파업은 노동 운동의 기록이야.' }
             ] },
           { claim: '투표는 원래 일부만 하는 것이다.',
@@ -204,7 +204,7 @@ window.COLONY_DATA = {
                 good: '감독관의 저지에도 번호표를 달고 끝까지 완주했다!' },
               { record: 'r2_suffrage', label: '참정권 요구', correct: false,
                 why: '투표할 권리를 요구한 기록이야. 완주할 수 있다는 증거는 아니야.' },
-              { label: '8시간 노동 요구 1886', correct: false,
+              { label: '8시간 노동 요구 1886', photo: 's3_chicago', correct: false,
                 why: '시카고 노동자들의 파업은 노동 운동의 기록이야.' }
             ] },
           { claim: '한 사람이 달렸다고 규칙이 바뀌지는 않는다.',
