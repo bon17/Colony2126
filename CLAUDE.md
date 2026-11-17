@@ -20,12 +20,12 @@
   - 스테이지 고르기: 푼 문제는 「문제 해결 ✓」(줄 긋기), 위쪽에 「정착촌 헌장 n/5조」
   - 게임 링크(비공개 아티팩트): https://claude.ai/artifact/NhWCkt3pse1e8Dhbeme1f1 . 다시 올릴 때는 Artifact 도구에 이 `url`을 꼭 넘긴다(안 넘기면 새 링크가 생긴다). 바뀐 파일만 `files`로 보내면 된다
     - 이 링크는 **다른 계정** 것이라, 다른 계정 세션에서는 열리지도 고쳐지지도 않는다(2026-11-17 확인: "artifact not found").
-  - **1~3스테이지 사진 21장 연결**(2026-11-17): `tools/photos_from_lesson.py`로 수업 파일에서 뽑아 `colony2126/photos/`에 넣었다(합계 약 3MB). 사진은 저장소에 올렸다(사용자 결정). 4~5스테이지 사진도 이 스크립트로 뽑아 올린다. 오답 구슬 「ILO 설립 1919」「8시간 노동 요구 1886」에도 `photo`를 달았다. 「노예 해방 선언 1863」은 수업 파일에 사진이 없어 문서 아이콘 그대로
+  - **사진 35장: 1~3스테이지 21장 연결, 4~5스테이지 14장 준비**(2026-11-17): `tools/photos_from_lesson.py`로 수업 파일에서 뽑아 `colony2126/photos/`에 넣었다(합계 약 3MB). 사진은 저장소에 올렸다(사용자 결정). 4~5스테이지 사진 14장도 같은 날 뽑아 올렸다(합계 약 4.3MB). 오답 구슬 「ILO 설립 1919」「8시간 노동 요구 1886」에도 `photo`를 달았다. 「노예 해방 선언 1863」은 수업 파일에 사진이 없어 문서 아이콘 그대로
 - 테스트 방법: 주소 끝에 `?debug`를 붙이면 `window.__colony`(순간 이동·무적·보스 체력 등)가 열린다. 클라우드 세션에서는 Playwright로 키 입력을 보내 플레이하고 스크린숏으로 확인했다.
 - 다음 할 일 (순서대로)
   1. 사용자가 3스테이지를 직접 해 보고 고칠 점 받기 (1스테이지는 "문제없다"고 함)
   2. 4~5스테이지, 종장, 엔딩(헌장 조립·결과 카드). 새 스테이지는 만들기 전에 구현 계획을 먼저 말하고 확인받는다(사용자 요청)
-  3. 4~5스테이지를 만들 때 그 사진도 `tools/photos_from_lesson.py`의 `PHOTOS`에 추가해 뽑기(사용자 요청: 만든 스테이지까지만 넣는다). 수업 파일 안 이름: `vietnam-map.png`, `vietnam-protest.jpg`, `us-withdrawal-1973.jpg`, `nuclear-test-protest.jpg`, `npt-1968.jpg`, `iraq-protest-2003.jpg`, `ukraine-protest-2022.jpg`, `aral-map.png`, `aral-1989.jpg`, `aral-2008.jpg`, `aral-ships.jpg`, `yellow-dust.jpg`, `rio-1992.jpg`, `greenpeace.jpg`. 쓰지 않은 사진: `eight-hours-cartoon.jpg`(8·8·8 노동 신문 만화)
+  3. 사진은 다 뽑아 두었다(4~5스테이지 14장도 `photos/`에 있음, 2026-11-17). 4~5스테이지 기록을 `data.js`에 넣을 때 `photo` 값으로 쓴다: 반전 평화 `s4_vietnam_map`(베트남 위치 지도) `s4_vietnam_protest`(미국 반전 시위) `s4_withdrawal`(베트남을 떠나는 미군) `s4_nuclear`(핵 실험 반대 시위) `s4_npt`(NPT 참여국 지도) `s4_iraq`(2003 이라크 전쟁 반대, 이탈리아) `s4_ukraine`(2022 우크라이나 침공 반대, 오스트레일리아) / 환경 `s5_aral_map`(아랄해 위치 지도) `s5_aral1989` `s5_aral2008`(위성 사진) `s5_ships`(바닥에 남은 배) `s5_dust`(황사 위성 사진) `s5_rio`(1992 리우 회의) `s5_greenpeace`(그린피스 선박). 쓰지 않은 사진: `eight-hours-cartoon.jpg`(8·8·8 노동 신문 만화, 스크립트에 없음)
   4. 전 스테이지 직접 플레이 테스트
   5. 배포용 한 파일 버전 만들기
 

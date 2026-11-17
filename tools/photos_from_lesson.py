@@ -42,7 +42,22 @@ PHOTOS = {
     's3_ilo': 'ilo-1919.jpg',
     's3_phila': 'philadelphia-1944.jpg',
     's3_memorial': 'ilo-poster.jpg',
-    # 4~5스테이지는 만들 때 여기에 추가한다
+    # 4 반전 평화
+    's4_vietnam_map': 'vietnam-map.png',
+    's4_vietnam_protest': 'vietnam-protest.jpg',
+    's4_withdrawal': 'us-withdrawal-1973.jpg',
+    's4_nuclear': 'nuclear-test-protest.jpg',
+    's4_npt': 'npt-1968.jpg',
+    's4_iraq': 'iraq-protest-2003.jpg',
+    's4_ukraine': 'ukraine-protest-2022.jpg',
+    # 5 환경
+    's5_aral_map': 'aral-map.png',
+    's5_aral1989': 'aral-1989.jpg',
+    's5_aral2008': 'aral-2008.jpg',
+    's5_ships': 'aral-ships.jpg',
+    's5_dust': 'yellow-dust.jpg',
+    's5_rio': 'rio-1992.jpg',
+    's5_greenpeace': 'greenpeace.jpg',
 }
 MAX_SIDE = 1280
 QUALITY = 82
