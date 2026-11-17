@@ -66,6 +66,8 @@ function tryLoad(store, key, base, exts) {
 }
 ['title', 'logo', 'card', 'op0a', 'op0b', 'op0c', 'op1', 'op2', 'op3', 'map', 'after1', 'after2', 'after3', 'after4', 'after5', 'boss1', 'boss2', 'boss3', 'boss4', 'boss5', 'boss_final', 'hero', 'ending1', 'ending2']
   .forEach(n => tryLoad(IMG, n, 'img/' + n, ['webp', 'jpg', 'png']));
+// 스테이지 시작 전 상황 컷 그림(data.js의 intro)
+D.stages.forEach(s => (s.intro || []).forEach(c => { if (c.img && !(c.img in IMG)) tryLoad(IMG, c.img, 'img/' + c.img, ['webp', 'jpg', 'png']); }));
 (function loadPhotos() {
   const keys = new Set();
   D.records.forEach(r => r.photo && keys.add(r.photo));
@@ -730,7 +732,7 @@ function ResultScene(r) {
         txt('스테이지 고르기에서 Q로 기술을 바꿔요', W / 2 + 10, 556, 16, '#bdb6e6', 'left', { weight: 600 });
       }
       button(W / 2 - 300, 630, 280, 58, '스테이지 고르기', () => go(() => SelectScene()));
-      button(W / 2 + 20, 630, 280, 58, '다시 하기', () => go(() => StageScene(r.id)), { fill: '#d9d2f0' });
+      button(W / 2 + 20, 630, 280, 58, '다시 하기', () => go(() => StageScene(r.id, { skipIntro: true })), { fill: '#d9d2f0' });
     }
   };
 }
@@ -1048,11 +1050,14 @@ function layoutStage3() {
     restrict: { kind: 'factory', wall: 'wB',
       hud: '24시간 가동 · 벨트 안 멈춤 · 쉼터 잠김', hudFree: '8시간 노동! 쉼터가 열렸어요',
       mission: '문 열기·24시간 가동 멈추기',
-      free: { title: '8시간 노동! 이제 쉴 수 있어요', sub: '벨트가 멈추고 쉼터가 열렸어요. 쉼터에 들어가면 피로가 풀리고 체력이 회복돼요!', cheer: '쉬는 시간이다!', joinN: 0 } },
+      free: { title: '퇴근! 이제 8시간만 일해요', sub: '벨트가 멈추고 쉼터가 열렸어요. 쉼터에 들어가면 피로가 풀리고 체력이 회복돼요!', cheer: '퇴근이다!', joinN: 0 } },
     missionWalls: ['wC', 'wB', 'wA'],
     capsRequired: 3, capLabel: '일하는 정착민 풀어 주기',
     // 피로: 24시간 가동 중에는 쉬지 못해 피로가 쌓이고(fill초에 가득), 가득 차면 체력이 초당 drain씩 줄어든다(최대 체력의 floor 아래로는 줄지 않는다)
-    fatigue: { fill: 32, drain: 1, floor: 0.45 },
+    // idle: 가동 중에는 가만히 있어도 초당 이만큼 체력이 줄어든다. slow: 피로가 가득 찼을 때 주인공이 느려지는 정도(0.3 = 30% 느림)
+    fatigue: { fill: 40, drain: 1, floor: 0.45, idle: 0.35, slow: 0.3 },
+    // 일하는 장면: 산소 통을 need개, from에서 들어 to(벨트)에 올린다. 한 번 올릴 때마다 hours시간이 지난다. 다 올려야 작업 구역을 나갈 수 있다
+    work: { need: 3, hours: 8, from: { x: 620, y: 3995 }, to: { x: 990, y: 3870 }, spawn: [['drone', 480, 3560], ['drone', 900, 3480], ['chaser', 700, 3330]] },
     bossPools: BOSS_POOLS3, bossStill: true, bossClock: true,
     npcBounds: { x0: 180, x1: 380, y0: 1910, y1: 2050 },
     legend: [
@@ -1065,7 +1070,7 @@ function layoutStage3() {
     ],
     flow: ['정착민 3명 풀어 주기', '함께 가동 장치 멈추기', '기록 칩 모두 모으기', '보스를 증거로 반박'],
     rules: [
-      { k: 'belt24', n: '24시간 가동 = 쉬지 못함', d: '피로가 쌓이고, 가득 차면 체력이 줄어요. 쉼터는 잠겨 있어요. 가동 장치를 멈춰야 쉴 수 있어요' },
+      { k: 'belt24', n: '24시간 가동 = 쉬지 못함', d: '가만히 있어도 체력이 줄고, 피로가 쌓일수록 느려져요. 가동 장치를 멈춰야 쉴 수 있어요' },
       { k: 'unity', n: '단결', d: '가동 장치는 혼자서 못 멈춰요. 일하는 정착민 3명을 풀어 주고 함께 멈춰요' }
     ]
   };
@@ -1073,6 +1078,8 @@ function layoutStage3() {
   const gen = (id, x, y, hp, o) => L.gens.push(Object.assign({ id, x, y, r: 32, hp: hp || 140, maxHp: hp || 140, alive: true, hitT: 0 }, o || {}));
   wall('wC', 70, 3196, 1460, 16, ['g1a', 'g1b'], { offMsg: ['라인 문이 열렸어요!', '위로 나아가세요'] });
   gen('g1a', 430, 3300, 90); gen('g1b', 1170, 3300, 90);
+  // 작업 구역 울타리: 산소 통을 다 올리기 전에는 자리를 뜰 수 없다
+  wall('wk', 70, 3828, 1460, 12, [], { soft: true, workFence: true, denyText: '작업 중 · 자리 이탈 금지' });
   wall('wB', 70, 1796, 1460, 16, ['g2d'], { divider: true });
   // 벨트를 돌리는 장치: 동료가 3명 모여야 방어막이 풀린다(단결)
   gen('g2d', 800, 2050, 320, { name: '24시간 가동 장치', big: true, needAllies: 3, drop: 'r3_wagner' });
@@ -1086,7 +1093,7 @@ function layoutStage3() {
   L.zones = [
     { y0: 3212, y1: 4100, exit: 'wC', check: { x: 800, y: 3990 }, label: 'A 구역 · 1교대 라인',
       pool: ['drone', 'chaser'], max: 3, every: 4.5,
-      initial: [['drone', 480, 3560], ['drone', 900, 3480], ['chaser', 700, 3330]] },
+      initial: [] },
     { y0: 1812, y1: 3196, exit: 'wB', check: { x: 800, y: 3140 }, label: 'B 구역 · 24시간 라인',
       pool: ['drone', 'chaser', 'drone'], max: 5, every: 3.4,
       initial: [['turret', 1350, 3070], ['drone', 900, 2770], ['drone', 600, 2530], ['turret', 520, 2200], ['turret', 1080, 2200]] },
@@ -1095,7 +1102,7 @@ function layoutStage3() {
       initial: [['turret', 210, 1060], ['turret', 1390, 1060], ['guard', 800, 1160, 'r3_ilo'], ['drone', 480, 1420], ['chaser', 1120, 1450]] }
   ];
   // 컨베이어 벨트(24시간 가동 중에만 움직인다), 벨트 위의 작업 섬, 벨트 끝의 압착기, 쉼터
-  L.belts = [ { x: 70, y: 3420, w: 1460, h: 400, dx: 0, dy: 1, speed: 105 },
+  L.belts = [ { x: 70, y: 3420, w: 1460, h: 400, dx: 0, dy: 1, speed: 90 },
               { x: 70, y: 2800, w: 1460, h: 180, dx: -1, dy: 0, speed: 130 },
               { x: 70, y: 2560, w: 1460, h: 180, dx: 1, dy: 0, speed: 130 },
               { x: 70, y: 2320, w: 1460, h: 180, dx: -1, dy: 0, speed: 130 },
@@ -1114,9 +1121,9 @@ function layoutStage3() {
   L.pads = [ { x: 70, y: 812, w: 1460, h: 3288 } ];
   L.domes = [];
   const sl = (stageById(3).slogans || []);
-  L.boards = [ { x: 380, y: 4076, text: sl[0] }, { x: 430, y: 3130, text: sl[1] }, { x: 430, y: 1770, text: sl[2] } ].filter(b => b.text);
+  L.boards = [ { x: 250, y: 4084, text: sl[0] }, { x: 430, y: 3130, text: sl[1] }, { x: 430, y: 1770, text: sl[2] } ].filter(b => b.text);
   L.signs = [ { x: 1400, y: 4040, text: '누구나 출전' } ];
-  L.crowd = [ [640, 4030, 0, 0], [716, 4070, 3, 0], [900, 4060, 4, Math.PI], [984, 4020, 1, Math.PI] ]
+  L.crowd = [ [350, 4020, 0, 0], [430, 4066, 3, 0], [1190, 4050, 4, Math.PI], [1262, 4000, 1, Math.PI] ]
     .map(c => ({ x: c[0], y: c[1], look: LOOKS[c[2]], aim: c[3], ph: Math.random() * 5 }));
   L.props = [ { kind: 'clock', x: 1320, y: 1960 }, { kind: 'tank', x: 120, y: 3880 }, { kind: 'tank', x: 1480, y: 3300 }, { kind: 'tank', x: 120, y: 3100 }, { kind: 'tank', x: 1480, y: 2250 },
               { kind: 'tank', x: 1000, y: 1150 }, { kind: 'tank', x: 120, y: 1700 }, { kind: 'antenna', x: 1250, y: 1700 } ];
@@ -1172,7 +1179,7 @@ const LAYOUTS_COACH = {
   }
 };
 function updateCoach(dt) {
-  const c = G.coach; if (!c) return;
+  const c = G.coach; if (!c || workOn()) return;
   const P = G.P;
   if (c.lx == null) { c.lx = P.x; c.ly = P.y; }
   c.moved += dist(P.x, P.y, c.lx, c.ly); c.lx = P.x; c.ly = P.y;
@@ -1222,7 +1229,7 @@ function updateTips(dt) {
   if (G.zoneIdx === 1 && G.restricted) showTip('div', '분리선 발생기를 찾아요!', '이걸 부수면 분리선이 꺼지고, 지구 출신에게 걸린 제한도 풀려요');
 }
 
-function newRun(stageId) {
+function newRun(stageId, opts) {
   const def = stageById(stageId);
   const L = LAYOUTS[stageId]();
   const up = Object.assign({}, save.upgrades);
@@ -1243,7 +1250,10 @@ function newRun(stageId) {
   };
   const P = G.P;
   G.cam.x = clamp(P.x - W / 2, 0, L.w - W); G.cam.y = clamp(P.y - H / 2, 0, L.h - H);
-  G.mode = 'brief'; G.briefT = 0; G.tip = null; G.tipsSeen = {};
+  G.mode = def.intro && def.intro.length && !(opts && opts.skipIntro) ? 'intro' : 'brief';
+  G.cutI = 0; G.cutT = 0; G.cutFull = false;
+  G.briefT = 0; G.tip = null; G.tipsSeen = {};
+  G.work = L.work ? { n: 0, carry: false, done: false } : null; G.shiftH = 0; G.nightA = 0; G.bellK = 3;
   G.restricted = !!L.restrict; G.npcs = L.npcs || []; G.freeT = -99;
   G.race = L.race ? { on: false, done: false, camY: 0, grace: 0, v: L.race.v } : null;
   G.runners = (L.runners || []).map(r => Object.assign({ t: Math.random() * 5, moving: false, boostT: 0 }, r));
@@ -1251,8 +1261,8 @@ function newRun(stageId) {
   return G;
 }
 
-function StageScene(stageId) {
-  newRun(stageId);
+function StageScene(stageId, opts) {
+  newRun(stageId, opts);
   return { name: 'stage', update: updateStage, draw: drawStage };
 }
 
@@ -1763,7 +1773,13 @@ function updateStage(dt) {
     if (G.mode === 'play') { G.mode = 'pause'; ui.focus = 0; return; }
     if (G.mode === 'pause') { G.mode = 'play'; return; }
   }
-  if (G.mode === 'brief') {
+  if (G.mode === 'intro') {
+    // 상황 컷: 눌러야 넘어간다. 글자가 다 나오기 전에 누르면 먼저 글자를 다 보여 준다
+    G.cutT += dt;
+    if (G.cutT * 40 >= richText(G.def.intro[G.cutI].text).plain.length) G.cutFull = true;
+    if (hit('Escape')) endCuts();
+    else if (G.cutT > 0.3 && (hit('Enter') || hit('Space') || hit('ArrowRight') || taps.length)) { if (G.cutFull) nextCut(); else G.cutFull = true; }
+  } else if (G.mode === 'brief') {
     G.briefT += dt;
     if (G.briefT > 0.5 && (hit('Enter') || hit('Space') || hit('NumpadEnter'))) openRules();
   } else if (G.mode === 'rules') {
@@ -1820,8 +1836,10 @@ function drawRules() {
     const col = i % 2, row = Math.floor(i / 2), x = 70 + col * 576, y = 106 + row * 120, w = 560, h = 108;
     rr(x, y, w, h, 16); ctx.fillStyle = 'rgba(46,40,92,0.95)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,244,220,0.35)'; ctx.stroke();
     ctx.save(); circle(x + 56, y + h / 2, 42); ctx.fillStyle = '#2a2550'; ctx.fill(); ctx.clip(); drawRuleIcon(it.k, x + 56, y + h / 2); ctx.restore();
-    txt(it.n, x + 112, y + 34, 26, C.amberL, 'left', { weight: 900 });
-    para(it.d, x + 112, y + 70, w - 128, 20, C.cream, 26, { weight: 600 });
+    // 제목과 설명을 한 묶음으로 칸 안에서 세로 가운데에 둔다(위아래 여백을 같게)
+    const dl = wrap(it.d, w - 128, 20, 600), lh = 25, top = y + (h - (36 + dl.length * lh)) / 2;
+    txt(it.n, x + 112, top + 15, 26, C.amberL, 'left', { weight: 900 });
+    dl.forEach((l, k) => txt(l, x + 112, top + 36 + lh / 2 + k * lh, 20, C.cream, 'left', { weight: 600 }));
   });
   const by = 106 + Math.ceil(items.length / 2) * 120 + 8;
   if (left > 0) {
@@ -1876,6 +1894,8 @@ function updatePlay(dt) {
     if (hit('Tab')) { G.missionPinned = !G.missionPinned; if (!G.missionPinned) G.missionAt = -99; }
     if ((hit('KeyQ') || touchAct.swap) && G.skills.length > 1) { G.skillIdx = (G.skillIdx + 1) % G.skills.length; addText(P.x, P.y - 50, D.skills[G.skills[G.skillIdx]].name, C.tealL, 18); }
     let spd = st.speed * (P.marchT > 0 ? 1.25 : 1) * (G.restricted && L.restrict.slow ? L.restrict.slow : 1) * (P.boostT > 0 ? 1.8 : 1) * (P.runT > 0 ? 1.7 : 1);
+    if (L.fatigue) spd *= 1 - (L.fatigue.slow || 0) * (G.fatigue || 0);
+    if (G.work && G.work.carry) spd *= 0.75;
     let vx = mx * spd, vy = my * spd;
     if (P.dashT > 0) { P.dashT -= dt; vx = P.dashDir.x * spd * 3.2; vy = P.dashDir.y * spd * 3.2; if (Math.random() < 0.6) G.parts.push({ x: P.x, y: P.y, vx: 0, vy: 0, life: 0.25, t: 0, color: 'rgba(159,245,234,0.8)', size: 9 }); }
     const bv = beltAt(P.x, P.y); if (bv) { vx += bv.x; vy += bv.y; }
@@ -2014,7 +2034,7 @@ function updatePlay(dt) {
     }
   }
   const z = G.zones[G.zoneIdx];
-  if (z && wallById(z.exit).active) {
+  if (z && wallById(z.exit).active && !workOn()) {
     z.spawnT -= dt;
     if (z.spawnT <= 0) {
       z.spawnT = z.every;
@@ -2211,20 +2231,48 @@ function updateFactory(dt) {
       if (P.hp < G.st.maxHp || G.fatigue > 0.01) { P.hp = Math.min(G.st.maxHp, P.hp + 16 * dt); if (G.t - (G.restT || -9) > 0.8) { G.restT = G.t; addText(P.x + rand(-16, 16), P.y - 50, '쉬는 중 +', C.good, 18); } }
     }
   }
-  // 피로: 쉬지 못하고 일하면 쌓이고, 가득 차면 체력이 줄어든다. 쉬면 풀린다
+  // 일하는 장면: 산소 통을 들어 벨트에 올린다. 올릴 때마다 시간이 훌쩍 지나지만 교대는 없다
+  const wk = L.work, ws = G.work;
+  if (wk && ws && !ws.done) {
+    if (!ws.carry && dist(P.x, P.y, wk.from.x, wk.from.y) < 54) { ws.carry = true; addText(P.x, P.y - 74, '영차!', C.cream, 20); Sound.play('pick'); }
+    else if (ws.carry && dist(P.x, P.y, wk.to.x, wk.to.y) < 56) {
+      ws.carry = false; ws.n++; G.shiftH = ws.n * wk.hours; G.fatigue = Math.min(1, (G.fatigue || 0) + 0.1);
+      burst(wk.to.x, wk.to.y - 24, C.tealL, 14, 200); Sound.play('good');
+      if (ws.n < wk.need) banner(G.shiftH + '시간째… 아직 교대가 없어요', '산소 통을 계속 올리세요 (' + ws.n + '/' + wk.need + ')', '#e3c8ff', 2.4);
+      else finishWork();
+    }
+  }
+  // 피로: 쉬지 못하고 일하면 쌓이고 체력이 줄어든다. 쌓일수록 느려진다. 쉬면 풀린다
   const F = L.fatigue;
   if (F) {
     if (G.restricted) {
-      G.fatigue = Math.min(1, (G.fatigue || 0) + dt / F.fill * (beltAt(P.x, P.y) ? 1.5 : 1));
-      if (G.fatigue >= 1) {
-        const floor = G.st.maxHp * F.floor;
-        if (!G.tiredSeen) { G.tiredSeen = true; banner('지쳤어요!', '쉬지 못해 체력이 줄어들어요. 24시간 가동을 멈춰야 쉴 수 있어요', '#e3c8ff', 4.5); }
-        if (P.hp > floor && !G.god) P.hp = Math.max(floor, P.hp - F.drain * dt);
-        G.tiredT = (G.tiredT || 0) - dt;
-        if (G.tiredT <= 0) { G.tiredT = 2.4; addText(P.x, P.y - 64, P.hp > floor ? '지쳤어요… 체력이 줄어요' : '지쳤어요… 쉬고 싶다', '#e3c8ff', 19); }
+      if (!ws || ws.done) {
+        G.shiftH += dt / 2.5;
+        const k = Math.floor(G.shiftH / 8);
+        if (k > G.bellK) { G.bellK = k; G.toasts.push({ zone: '교대 벨이 울렸어요 · 오더 방송: 「교대 없음. 계속 가동」', t: 0 }); }
       }
+      G.fatigue = Math.min(1, (G.fatigue || 0) + dt / F.fill * (beltAt(P.x, P.y) ? 1.5 : 1));
+      const full = G.fatigue >= 1, floor = G.st.maxHp * F.floor, rate = full ? F.drain : (F.idle || 0);
+      if (P.hp > floor && !G.god) { const d = Math.min(P.hp - floor, rate * dt); P.hp -= d; G.drainAcc = (G.drainAcc || 0) + d; }
+      if (full) {
+        if (!G.tiredSeen) { G.tiredSeen = true; banner('지쳤어요!', '쉬지 못해 느려지고 체력이 줄어들어요. 24시간 가동을 멈춰야 쉴 수 있어요', '#e3c8ff', 4.5); }
+        G.tiredT = (G.tiredT || 0) - dt;
+        if (G.tiredT <= 0) { G.tiredT = 2.4; G.drainAcc = 0; addText(P.x, P.y - 64, P.hp > floor ? '지쳤어요… 체력이 줄어요' : '지쳤어요… 쉬고 싶다', '#e3c8ff', 19); }
+      } else if (G.drainAcc >= 2) { G.drainAcc -= 2; addText(P.x, P.y - 60, '쉬지 못해 -2', '#e3c8ff', 17); }
     } else G.fatigue = Math.max(0, (G.fatigue || 0) - dt / (resting ? 2.5 : 24));
+    // 창밖: 낮과 밤이 바뀌어도 벨트는 돈다
+    const na = G.restricted ? 0.1 * (1 - Math.cos(TAU * (G.shiftH % 24) / 24)) : 0;
+    G.nightA = lerp(G.nightA || 0, na, Math.min(1, dt * 1.5));
   }
+}
+function workOn() { return !!(G.work && !G.work.done); }
+function finishWork() {
+  const wk = G.L.work, ws = G.work;
+  ws.done = true; G.shiftH = wk.need * wk.hours;
+  const fence = G.walls.find(w => w.workFence); if (fence) { fence.active = false; fence.fade = 1; }
+  banner(G.shiftH + '시간째… 교대 없음!', '「쉬게 해 주세요!」 이대로는 일할 수 없어요. 자리를 박차고 나가요', C.mustard, 4.4);
+  (wk.spawn || []).forEach(s => spawnEnemy(s[0], s[1], s[2], 0));
+  if (G.coach) { G.coach.st = 0; G.coach.showAt = G.t; }
 }
 function updateNpcs(dt) {
   if (G.arenaLock) return;
@@ -2258,7 +2306,29 @@ function updateFx(dt) {
 }
 
 /* ----- 그리기 ----- */
+/* ----- 스테이지 시작 전 상황 컷 ----- */
+function nextCut() { G.cutI++; G.cutT = 0; G.cutFull = false; if (G.cutI >= G.def.intro.length) endCuts(); }
+function endCuts() { if (G.mode !== 'intro') return; G.cutI = Math.min(G.cutI, G.def.intro.length - 1); G.mode = 'brief'; G.briefT = 0; ui.focus = 0; }
+function drawStageIntro() {
+  const cut = G.def.intro[G.cutI], t = G.cutT;
+  if (IMG[cut.img]) drawCover(IMG[cut.img], 0, 0, W, H, 1.02 + t * 0.006);
+  else drawMarsScene(G.t, { laser: false, eyeColor: null });
+  const bx = 70, bw = W - 140, bh = 148, by = H - bh - 44, size = 30, lh = 46;
+  const gr = ctx.createLinearGradient(0, by - 90, 0, H); gr.addColorStop(0, 'rgba(12,10,30,0)'); gr.addColorStop(0.45, 'rgba(12,10,30,0.6)'); gr.addColorStop(1, 'rgba(12,10,30,0.85)');
+  ctx.fillStyle = gr; ctx.fillRect(0, by - 90, W, H - by + 90);
+  panel(bx, by, bw, bh, { fill: 'rgba(16,13,38,0.95)', stroke: 'rgba(255,244,220,0.9)', r: 22 });
+  const rich = richText(cut.text);
+  const n = G.cutFull ? rich.plain.length : Math.min(rich.plain.length, Math.floor(t * 40));
+  const nLines = Math.min(2, wrap(rich.plain, bw - 110, size, 600).length);
+  drawRich(rich, n, bx + 55, nLines === 1 ? by + bh / 2 : by + bh / 2 - lh / 2, bw - 110, size, lh, C.cream, C.mustard);
+  const label = 'STAGE ' + G.def.id + ' · ' + G.def.name; setFont(24, 900); const tw = ctx.measureText(label).width + 44;
+  panel(24, 24, tw, 48, { fill: 'rgba(27,24,56,0.92)', stroke: C.mustard, r: 24, lw: 3 }); txt(label, 24 + tw / 2, 49, 24, C.amberL, 'center', { weight: 900 });
+  if (G.cutFull) txt('▼', bx + bw - 40, by + bh - 28 + Math.sin(G.t * 6) * 3, 20, C.mustard, 'center');
+  button(W - 190, 24, 166, 48, '건너뛰기 ▶▶', () => endCuts(), { size: 18, focusable: false });
+  txt('클릭 · Enter: 다음', W / 2, H - 20, 16, 'rgba(255,244,220,0.8)', 'center', { weight: 600 });
+}
 function drawStage() {
+  if (G.mode === 'intro') { drawStageIntro(); return; }
   const P = G.P, cam = G.cam;
   const sx = G.shake > 0 ? rand(-G.shake, G.shake) * 0.6 : 0, sy = G.shake > 0 ? rand(-G.shake, G.shake) * 0.6 : 0;
   ctx.save(); ctx.translate(sx, sy);
@@ -2302,6 +2372,7 @@ function drawStage() {
   ctx.restore();
   ctx.restore();
   drawDust();
+  if (G.nightA > 0.004) { ctx.fillStyle = 'rgba(8,10,52,' + G.nightA.toFixed(3) + ')'; ctx.fillRect(0, 0, W, H); }
   drawOffscreenTargets();
   drawHUD();
   if (G.mode === 'notice') drawNotice();
@@ -2320,6 +2391,7 @@ function drawStage() {
 function guideGoal() {
   const P = G.P;
   if (G.boss || P.dead || G.mode !== 'play') return null;
+  if (workOn()) { const tg = G.work.carry ? G.L.work.to : G.L.work.from; return { x: tg.x, y: tg.y, near: true }; }
   if (G.coach) { const st = G.coach.steps[G.coach.step]; if (st && st.target) { const t = st.target(); if (t) return { x: t.x, y: t.y, near: true }; } }
   if (G.race && G.race.on) { const g = nextGap(); if (g) return { x: g.x, y: g.y, near: true }; }
   if (unityNeed()) { const c = nearestOf(G.caps.filter(c => !c.freed)); if (c) return { x: c.x, y: c.y, near: true }; }
@@ -2384,6 +2456,7 @@ function drawPlayer() {
   if (P.inv > 0 && P.dashT <= 0 && Math.floor(P.inv * 16) % 2 === 0) ctx.globalAlpha = 0.45;
   drawHeroAt(P.x, P.y, P.aim, P.t, P.moving, Math.max(0, P.glow), G.L.restrict && G.L.restrict.kind === 'race' && !G.restricted ? { bib: 26 } : (G.L.fatigue && G.restricted && G.fatigue >= 1 ? { closed: true } : null));
   ctx.globalAlpha = 1;
+  if (G.work && G.work.carry) drawTank(P.x, P.y - 62);
   if (G.st.allies > 0) for (let k = 0; k < G.st.allies; k++) {
     const a = G.t * 2.2 + k / G.st.allies * TAU, x = P.x + Math.cos(a) * 46, y = P.y - 6 + Math.sin(a) * 30;
     ctx.lineWidth = 2; ctx.strokeStyle = C.ink; ctx.fillStyle = C.tealL; circle(x, y, 8); ctx.fill(); ctx.stroke();
@@ -2515,6 +2588,7 @@ function drawWorldDecor() {
   for (const i of L.islands || []) drawIsland(i);
   for (const pr of L.presses || []) drawPress(pr);
   for (const r of L.rests || []) drawRest(r);
+  if (L.work) drawWork();
   for (const b of L.boosts || []) drawBoost(b);
   if (L.deadDivider) drawDeadDivider(L.deadDivider);
   if (L.pen) drawPen(L.pen);
@@ -2708,6 +2782,38 @@ function drawFactoryWall(s) {
   ctx.fillStyle = C.ink; for (let y = Math.floor(y0 / 28) * 28 - 28; y < y1; y += 28) { ctx.beginPath(); ctx.moveTo(inner - 10, y); ctx.lineTo(inner + 10, y + 14); ctx.lineTo(inner + 10, y + 26); ctx.lineTo(inner - 10, y + 12); ctx.closePath(); ctx.fill(); }
   ctx.restore();
 }
+function drawTank(x, y) {
+  ctx.save(); ctx.lineJoin = 'round'; ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink;
+  ctx.fillStyle = '#e8e2d6'; rr(x - 12, y - 22, 24, 40, 10); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = C.teal; ctx.fillRect(x - 12, y - 5, 24, 6);
+  ctx.fillStyle = '#9ea3c8'; rr(x - 5, y - 28, 10, 8, 3); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+// 일하는 장면의 통 더미와 벨트에 올리는 곳
+function drawWork() {
+  const wk = G.L.work, ws = G.work, c = G.cam;
+  if (wk.from.y < c.y - 120 || wk.to.y > c.y + H + 120) return;
+  const left = wk.need - ws.n - (ws.carry ? 1 : 0);
+  ctx.save(); ctx.lineJoin = 'round';
+  ctx.fillStyle = 'rgba(10,8,30,0.35)'; ellipse(wk.from.x, wk.from.y + 24, 70, 12); ctx.fill();
+  ctx.fillStyle = '#c98f55'; rr(wk.from.x - 62, wk.from.y + 8, 124, 18, 5); ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke();
+  for (let i = 0; i < left; i++) drawTank(wk.from.x - 32 + i * 32, wk.from.y - 6);
+  rr(wk.to.x - 52, wk.to.y - 34, 104, 68, 12); ctx.fillStyle = '#3a3566'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  ctx.save(); rr(wk.to.x - 46, wk.to.y - 28, 92, 56, 8); ctx.clip();
+  ctx.strokeStyle = ws.done ? 'rgba(170,170,210,0.4)' : 'rgba(255,196,90,0.85)'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  const p = ws.done ? 0 : (G.t * 1.6) % 1;
+  for (let k = -1; k < 3; k++) { const yy = wk.to.y + 22 - k * 22 - p * 22; ctx.beginPath(); ctx.moveTo(wk.to.x - 24, yy + 9); ctx.lineTo(wk.to.x, yy - 9); ctx.lineTo(wk.to.x + 24, yy + 9); ctx.stroke(); }
+  ctx.restore();
+  if (!ws.done) {
+    const tg = ws.carry ? wk.to : wk.from, label = ws.carry ? '여기에 올리기' : '산소 통 들기', pu = 1 + Math.sin(G.t * 5) * 0.08;
+    ctx.strokeStyle = 'rgba(247,197,72,0.9)'; ctx.lineWidth = 4; ctx.setLineDash([14, 10]); ctx.lineDashOffset = -G.t * 30;
+    ctx.beginPath(); ctx.ellipse(tg.x, tg.y + 8, 78 * pu, 40 * pu, 0, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    setFont(17, 900); const tw = ctx.measureText(label).width + 26, by = tg.y - 72 + Math.sin(G.t * 6) * 5;
+    rr(tg.x - tw / 2, by - 15, tw, 30, 15); ctx.fillStyle = C.mustard; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+    txt(label, tg.x, by + 1, 17, C.ink, 'center', { weight: 900 });
+  }
+  ctx.restore();
+}
 // 작업대에 묶여 일하는 정착민
 function drawWorker(c) {
   ctx.save(); ctx.translate(c.x, c.y); ctx.scale(1.25, 1.25);
@@ -2872,6 +2978,7 @@ function drawRecordGate(w) {
 }
 function drawWall(w) {
   if (w.recordGate) { drawRecordGate(w); return; }
+  if (w.workFence && w.active) { setFont(16, 600); const s = '작업 구역 · 산소 통을 다 올릴 때까지 자리 이탈 금지', tw = ctx.measureText(s).width + 26; rr(w.x + w.w / 2 - tw / 2, w.y - 36, tw, 28, 14); ctx.fillStyle = 'rgba(70,25,25,0.94)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.bad; ctx.stroke(); txt(s, w.x + w.w / 2, w.y - 21, 16, '#ffd0c8', 'center', { weight: 600 }); }
   if (w.barrier) { drawBarrier(w); return; }
   if (w.startGate) drawStartGate(w);
   const a = w.active ? 1 : Math.max(0, w.fade);
@@ -3173,12 +3280,17 @@ function drawHUD() {
   if (G.L.fatigue && G.mode !== 'brief' && G.mode !== 'rules') {
     const f = G.fatigue || 0, full = f >= 1 && G.restricted, show = G.restricted || f > 0.01 || G.t - G.freeT < 6;
     if (show) {
-      const blink = full && Math.floor(G.t * 4) % 2 === 0;
-      panel(14, 110, 340, 62, { fill: G.restricted ? 'rgba(64,30,84,0.92)' : 'rgba(20,70,60,0.92)', stroke: G.restricted ? (blink ? C.bad : '#d9b8ff') : C.good, r: 16, lw: full ? 3 : 2 });
-      txt(G.restricted ? (full ? '지쳤어요! 쉬지 못해 체력이 줄어요' : '24시간 가동 · 쉬지 못해 피로가 쌓여요') : (f > 0.01 ? '8시간 노동! 쉼터에서 쉬면 피로가 풀려요' : '8시간 노동! 푹 쉬었어요'), 184, 127, 15, G.restricted ? '#f0e2ff' : '#c8ffe4', 'center', { weight: 600 });
-      txt('피로', 30, 153, 15, G.restricted ? '#e3c8ff' : '#c8ffe4', 'left', { weight: 900 });
-      rr(72, 146, 268, 14, 7); ctx.fillStyle = 'rgba(10,8,30,0.8)'; ctx.fill();
-      if (f > 0.005) { rr(72, 146, 268 * f, 14, 7); ctx.fillStyle = G.restricted ? (full ? C.bad : '#b98cff') : C.good; ctx.fill(); }
+      const blink = full && Math.floor(G.t * 4) % 2 === 0, on = G.restricted;
+      panel(14, 110, 340, 88, { fill: on ? 'rgba(64,30,84,0.92)' : 'rgba(20,70,60,0.92)', stroke: on ? (blink ? C.bad : '#d9b8ff') : C.good, r: 16, lw: full ? 3 : 2 });
+      // 연속 가동 시계: 낮(해)과 밤(달)이 바뀌어도 숫자는 계속 올라간다
+      const hod = G.shiftH % 24, night = on && hod >= 8 && hod < 20;
+      ctx.fillStyle = night ? '#fff4dc' : C.mustard; circle(36, 130, 10); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.ink; ctx.stroke();
+      if (night) { ctx.fillStyle = on ? 'rgba(64,30,84,1)' : 'rgba(20,70,60,1)'; circle(41, 126, 8); ctx.fill(); }
+      txt(on ? '연속 가동 ' + Math.floor(G.shiftH) + '시간째 · 교대 없음' : '퇴근! 이제 8시간만 일해요', 56, 131, 19, on ? C.amberL : '#c8ffe4', 'left', { weight: 900 });
+      txt(on ? (full ? '지쳤어요! 느려지고 체력이 빨리 줄어요' : '쉬지 못해 피로가 쌓이고 체력이 줄어요') : (f > 0.01 ? '쉼터에서 쉬면 피로가 풀려요' : '푹 쉬었어요'), 184, 157, 15, on ? '#f0e2ff' : '#c8ffe4', 'center', { weight: 600 });
+      txt('피로', 30, 180, 15, on ? '#e3c8ff' : '#c8ffe4', 'left', { weight: 900 });
+      rr(72, 173, 268, 14, 7); ctx.fillStyle = 'rgba(10,8,30,0.8)'; ctx.fill();
+      if (f > 0.005) { rr(72, 173, 268 * f, 14, 7); ctx.fillStyle = on ? (full ? C.bad : '#b98cff') : C.good; ctx.fill(); }
     }
   } else if (G.L.restrict && G.mode !== 'brief' && G.mode !== 'rules') {
     if (G.restricted) { panel(14, 110, 340, 34, { fill: 'rgba(90,25,30,0.88)', stroke: C.bad, r: 17, lw: 2 }); txt(G.L.restrict.hud || '지구 출신 · 이동 느림 · 대시 금지', 184, 127, 16, '#ffd0c8', 'center', { weight: 600 }); }
@@ -3202,6 +3314,7 @@ function drawHUD() {
   }
   let obj = '';
   if (G.boss && !G.boss.dead) obj = '';
+  else if (workOn()) obj = '지금 할 일 ▶ ' + (G.work.carry ? '산소 통을 벨트에 올리기' : '산소 통 들기') + ' (' + G.work.n + '/' + G.L.work.need + ')';
   else if (G.coach && G.coach.steps[G.coach.step]) obj = '지금 할 일 ▶ ' + G.coach.steps[G.coach.step].title;
   else if (G.race && G.race.on) obj = '지금 할 일 ▶ 차단막의 틈으로 달리기! 뒤처지면 다쳐요 ▲';
   else if (unityNeed()) obj = '지금 할 일 ▶ 일하는 정착민 풀어 주기 (' + G.settlers.length + '/' + unityNeed().needAllies + ')';
@@ -3406,8 +3519,9 @@ function drawBrief() {
     const col = i % 3, row = Math.floor(i / 3), x = 90 + col * 372, y = 244 + row * 118, w = 356, h = 106;
     rr(x, y, w, h, 16); ctx.fillStyle = 'rgba(46,40,92,0.95)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,244,220,0.35)'; ctx.stroke();
     ctx.save(); circle(x + 52, y + h / 2, 42); ctx.fillStyle = '#2a2550'; ctx.fill(); ctx.clip(); drawLegendIcon(it.k, x + 52, y + h / 2); ctx.restore();
-    txt(it.n, x + 106, y + 32, 22, C.cream, 'left', { weight: 900 });
-    para(it.t, x + 106, y + 62, w - 118, 16, '#d8d1fa', 22, { weight: 600 });
+    const tl = wrap(it.t, w - 118, 16, 600), lh2 = 21, top2 = y + (h - (31 + tl.length * lh2)) / 2;
+    txt(it.n, x + 106, top2 + 13, 22, C.cream, 'left', { weight: 900 });
+    tl.forEach((l, k) => txt(l, x + 106, top2 + 31 + lh2 / 2 + k * lh2, 16, '#d8d1fa', 'left', { weight: 600 }));
   });
   const flow = G.L.flow || (G.L.restrict ? ['발생기 부수기', '분리선 끄기', '기록 칩 모두 모으기', '보스를 증거로 반박'] : ['발생기 부수기', '레이저 벽 통과', '기록 칩 모두 모으기', '보스를 증거로 반박']);
   const fg = flow.length > 4 ? 26 : 34, fw = Math.min(248, (1160 - (flow.length - 1) * fg) / flow.length), fx0 = W / 2 - (flow.length * fw + (flow.length - 1) * fg) / 2;
@@ -3613,7 +3727,7 @@ function drawGameOver() {
   modalStart(); dim(0.78);
   txt('목숨을 모두 썼어요', W / 2, 220, 48, C.cream, 'center', { weight: 900, stroke: C.ink, sw: 9 });
   txt('스테이지를 처음부터 다시 해요. 모은 기록 칩은 그대로 남아요.', W / 2, 290, 24, '#d8d1fa', 'center', { weight: 600 });
-  button(W / 2 - 180, 360, 360, 66, '처음부터 다시 시작', () => go(() => StageScene(G.def.id)), { size: 28 });
+  button(W / 2 - 180, 360, 360, 66, '처음부터 다시 시작', () => go(() => StageScene(G.def.id, { skipIntro: true })), { size: 28 });
 }
 
 /* ---------------- 메인 루프 ---------------- */
@@ -3648,7 +3762,8 @@ if (DEBUG) {
   window.__colony = {
     get G() { return G; }, get scene() { return scene && scene.name; }, get save() { return save; },
     get mode() { return G && G.mode; }, get overlay() { return !!overlay; },
-    start(id) { overlay = null; setScene(StageScene(id || 1)); },
+    start(id, withIntro) { overlay = null; setScene(StageScene(id || 1, { skipIntro: !withIntro })); },
+    skipWork() { const ws = G.work; if (!ws || ws.done) return; ws.n = G.L.work.need; ws.carry = false; finishWork(); },
     tp(x, y) { G.P.x = x; G.P.y = y; },
     god(on) { G.god = on !== false; },
     xp(n) { gainXp(n); },

@@ -130,10 +130,10 @@ window.COLONY_DATA = {
             options: [
               { record: 'r1_sign', label: '인종 분리 표지판', correct: true,
                 good: '노예제가 사라진 뒤에도 학교·버스·식당은 인종으로 나뉘었다!' },
-              { label: '노예 해방 선언 1863', correct: false,
-                why: '노예제가 사라졌다는 사실은 오더의 말을 거드는 쪽이야. 차별이 남았다는 증거가 필요해.' },
-              { label: 'ILO 설립 1919', correct: false,
-                why: '국제 노동 기구는 노동 운동의 기록이야. 인종 차별과는 다른 이야기.' }
+              { record: 'r1_nobel', label: '노벨 평화상 1993', correct: false,
+                why: '아파르트헤이트 폐지에 힘쓴 뒤에 받은 상이야. 노예제가 없어진 뒤에도 차별이 남았다는 증거가 필요해.' },
+              { record: 'r1_1994', label: '1994 첫 선거', correct: false,
+                why: '차별이 바뀐 뒤의 일이야. 노예제가 없어진 뒤에도 나뉘어 있었다는 증거가 필요해.' }
             ] },
           { claim: '차별은 마음의 문제다. 법으로는 바꿀 수 없다.',
             options: [
@@ -141,8 +141,8 @@ window.COLONY_DATA = {
                 good: '1964년 민권법이 인종 차별을 불법으로 규정했다!' },
               { record: 'r1_sign', label: '인종 분리 표지판', correct: false,
                 why: '차별이 있었다는 증거일 뿐, 법이 바꿨다는 증거는 아니야.' },
-              { label: '8시간 노동 요구 1886', correct: false,
-                why: '시카고 노동자들의 파업은 노동 운동의 기록이야.' }
+              { record: 'r1_king', label: '킹의 연설 1963', correct: false,
+                why: '차별을 없애 달라고 요구한 연설이야. 법으로 바꿨다는 증거가 필요해.' }
             ] },
           { claim: '투표는 원래 일부만 하는 것이다.',
             options: [
@@ -150,8 +150,8 @@ window.COLONY_DATA = {
                 good: '셀마–몽고메리 행진 끝에 모든 흑인의 참정권이 보장되었다!' },
               { record: 'r1_apartheid', label: '아파르트헤이트', correct: false,
                 why: '아파르트헤이트는 흑인의 참정권을 부정한 정책이야. 오더 편을 든 셈!' },
-              { label: '노예 해방 선언 1863', correct: false,
-                why: '노예 해방은 투표권 보장과 다른 일이야. 그 뒤 100년이 지나서야 참정권이 보장되었어.' }
+              { record: 'r1_sign', label: '인종 분리 표지판', correct: false,
+                why: '학교·버스·식당을 나눴다는 증거야. 모두가 투표하게 되었다는 증거가 필요해.' }
             ] },
           { claim: '분리는 영원하다. 사람들은 아무것도 바꾸지 못한다.',
             options: [
@@ -184,6 +184,12 @@ window.COLONY_DATA = {
         goal: '출전 금지를 풀고, 기록 칩을 모두 모아, 결승선의 배제 모듈을 증거로 반박하세요!'
       },
       problem: '지구 출신은 출전 금지',
+      /* 스테이지 시작 전 상황 컷 (그림: img/s2a~s2c). {중괄호} 안 글자는 노란색 */
+      intro: [
+        { img: 's2a', text: '오늘은 정착촌 최대의 대회, {협곡 레이스}가 열리는 날이에요. 나도 꼭 달리고 싶었어요.' },
+        { img: 's2b', text: '그런데 오더가 내 신청을 막았어요. "{지구 출신}은 화성 중력에 약해 완주할 수 없다. 출전 금지."' },
+        { img: 's2c', text: '달려 보지도 않았는데 못 한다고요? 번호표가 없어도 {출발선}으로 가요!' }
+      ],
       slogans: [ ['협곡 레이스 출발선', '화성 태생만 출전할 수 있습니다'], ['출전 금지', '지구 출신은 완주할 수 없습니다'], ['효율이 먼저입니다', '느린 주자는 필요 없습니다'] ],
       boss: {
         name: '배제 모듈', img: 'boss2',
@@ -193,7 +199,7 @@ window.COLONY_DATA = {
             options: [
               { record: 'r2_1971', label: '1971 평등 행진', correct: true,
                 good: '참정권을 얻은 뒤에도 교육·취업·임금의 평등을 요구하며 행진했다!' },
-              { record: 'r2_suffrage', label: '여성 참정권 획득', correct: false,
+              { record: 'r2_suffrage', label: '여성 참정권', correct: false,
                 why: '참정권을 얻었다는 사실은 오더의 말을 거드는 쪽이야. 그 뒤에도 차별이 남았다는 증거가 필요해.' },
               { record: 'r1_civil', label: '민권법 1964', correct: false,
                 why: '민권법은 인종 차별을 불법으로 규정한 법이야. 민권 운동의 기록.' }
@@ -202,10 +208,10 @@ window.COLONY_DATA = {
             options: [
               { record: 'r2_boston', label: '1967 보스턴 완주', correct: true,
                 good: '감독관의 저지에도 번호표를 달고 끝까지 완주했다!' },
-              { record: 'r2_suffrage', label: '참정권 요구', correct: false,
-                why: '투표할 권리를 요구한 기록이야. 완주할 수 있다는 증거는 아니야.' },
-              { label: '8시간 노동 요구 1886', correct: false,
-                why: '시카고 노동자들의 파업은 노동 운동의 기록이야.' }
+              { record: 'r2_suffrage', label: '여성 참정권', correct: false,
+                why: '투표할 권리를 얻은 기록이야. 완주할 수 있다는 증거는 아니야.' },
+              { record: 'r2_saudi', label: '2018 여성 운전 허용', correct: false,
+                why: '운전이 허용된 기록이야. 마라톤을 끝까지 달릴 수 있다는 증거는 아니야.' }
             ] },
           { claim: '한 사람이 달렸다고 규칙이 바뀌지는 않는다.',
             options: [
@@ -222,7 +228,7 @@ window.COLONY_DATA = {
                 good: '2018년에야 사우디아라비아 여성이 운전할 수 있게 되었다. 여성 운동은 지금도 계속된다!' },
               { record: 'r2_1972', label: '1972 공식 허용', correct: false,
                 why: '50년도 더 지난 일이야. 지금도 바뀌고 있다는 증거가 필요해.' },
-              { record: 'r2_suffrage', label: '여성 참정권 획득', correct: false,
+              { record: 'r2_suffrage', label: '여성 참정권', correct: false,
                 why: '아주 오래전 일이야. 오더의 말을 거드는 셈!' }
             ] }
         ]
@@ -244,10 +250,16 @@ window.COLONY_DATA = {
       mission: {
         why: '오더가 산소 공장을 24시간 돌려요. 쉬지 못해 지친 정착민들이 외쳐요. "쉬게 해 주세요!"',
         goal: '정착민 3명과 함께 24시간 가동을 멈추고, 기록 칩을 모두 모아, 시계탑을 반박하세요!',
-        /* 시작할 때 화면에 뜨는 정착민들의 외침 */
-        call: '「쉬게 해 주세요!」 24시간 일하는 정착민들이 외쳐요'
+        /* 시작할 때 화면에 뜨는 한 줄 */
+        call: '오늘도 교대는 없어요. 산소 통 3개를 벨트에 올리세요'
       },
       problem: '쉬지 못하는 노동',
+      /* 스테이지 시작 전 상황 컷 (그림: img/s3a~s3c) */
+      intro: [
+        { img: 's3a', text: '정착촌의 공기는 모두 이 {산소 공장}에서 만들어요. 수업이 끝나면 나도 여기서 일해요.' },
+        { img: 's3b', text: '어느 날 오더가 선언했어요. "오래 일할수록 효율적이다. 오늘부터 {24시간 가동}. 교대는 없다."' },
+        { img: 's3c', text: '쉬지 못한 사람들이 하나둘 쓰러져요. 모두가 외쳐요. "{쉬게 해 주세요!}"' }
+      ],
       slogans: [ ['산소 공장 1교대 라인', '멈추지 않는 벨트, 최고의 효율'], ['24시간 가동 중', '쉬는 시간은 비효율입니다'], ['효율이 먼저입니다', '오래 일할수록 효율적입니다'] ],
       boss: {
         name: '24/7 시계탑', img: 'boss3',
