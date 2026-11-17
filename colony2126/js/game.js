@@ -39,7 +39,32 @@ const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0
 let usingTouch = false;
 // 화면 터치 버튼을 늘 보이게 하는 설정 (태블릿용). 브라우저에 따로 기억한다
 let forceTouch = false;
-try { forceTouch = localStorage.getItem('colony2126.touch') === '1'; } catch (e) { /* 무시 */ }
+// 학생들은 주로 태블릿을 쓰므로 터치 버튼이 기본으로 켜져 있다(PC에서는 시작 화면에서 끌 수 있다)
+try { const v = localStorage.getItem('colony2126.touch'); forceTouch = v === null ? true : v === '1'; } catch (e) { forceTouch = true; }
+/* 전체화면: 버튼을 누른 그 순간(손가락·클릭 이벤트 안)에 요청해야 브라우저가 허락한다 */
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+let fsNoteT = -1e9;
+function toggleFullscreen() {
+  try {
+    if (isFullscreen()) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    const el = document.documentElement, rq = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!rq || document.fullscreenEnabled === false) { fsNoteT = performance.now(); return; }
+    const p = rq.call(el);
+    if (p && p.catch) p.catch(() => { fsNoteT = performance.now(); });
+  } catch (e) { fsNoteT = performance.now(); }
+}
+function fsButton(x, y, w, h, size) {
+  button(x, y, w, h, isFullscreen() ? '전체화면 끄기' : '전체화면', () => toggleFullscreen(), { size: size || 18, fill: '#d9d2f0' });
+}
+// 전체화면이 막힌 곳(일부 휴대폰, 다른 페이지 안에 들어간 화면)에서 누르면 잠깐 안내한다
+function drawFsNote() {
+  const t = (performance.now() - fsNoteT) / 1000; if (t > 3.5) return;
+  ctx.save(); ctx.globalAlpha = Math.min(1, (3.5 - t) * 2);
+  const s = '이 화면에서는 전체화면이 막혀 있어요. 브라우저 메뉴의 「전체 화면」을 써 주세요', tw = (setFont(18, 600), ctx.measureText(s).width + 40);
+  panel(W / 2 - tw / 2, H - 140, tw, 44, { fill: 'rgba(27,24,56,0.96)', stroke: C.mustard, r: 22, lw: 2 });
+  txt(s, W / 2, H - 118, 18, C.cream, 'center', { weight: 600 });
+  ctx.restore();
+}
 function setForceTouch(on) { forceTouch = on; try { localStorage.setItem('colony2126.touch', on ? '1' : '0'); } catch (e) { /* 무시 */ } }
 
 function resize() {
@@ -526,7 +551,9 @@ function TitleScene() {
       button(bx, y, 340, 52, '지구 기록 보관소', () => openArchive(), { size: 21, fill: C.tealL });
       soundButton(W - 190, H - 66);
       button(W - 380, H - 66, 176, 46, forceTouch ? '터치 버튼: 켬' : '터치 버튼: 끔', () => setForceTouch(!forceTouch), { size: 18, fill: forceTouch ? C.tealL : '#d9d2f0' });
-      txt('Enter: 고르기 · 방향키: 옮기기', 24, H - 26, 15, 'rgba(255,244,220,0.75)', 'left', { weight: 600, stroke: 'rgba(20,16,50,0.7)', sw: 4 });
+      fsButton(W - 570, H - 66, 176, 46);
+      txt('버튼을 눌러 고르기 (키보드: 방향키 + Enter)', 24, H - 26, 15, 'rgba(255,244,220,0.75)', 'left', { weight: 600, stroke: 'rgba(20,16,50,0.7)', sw: 4 });
+      drawFsNote();
     }
   };
 }
@@ -590,7 +617,7 @@ function OpeningScene() {
       if (cut.card === 'problems') drawProblemsCard(this.t);
       if (this.full) txt('▼', bx + bw - 40, by + bh - 28 + Math.sin(this.t * 6) * 3, 20, C.mustard, 'center');
       button(W - 190, 24, 166, 48, '건너뛰기 ▶▶', () => { this.done = true; finish(); }, { size: 18, focusable: false });
-      txt('클릭 · Enter: 다음', W / 2, H - 20, 16, 'rgba(255,244,220,0.8)', 'center', { weight: 600 });
+      txt('화면을 눌러 다음 (키보드: Enter)', W / 2, H - 20, 16, 'rgba(255,244,220,0.8)', 'center', { weight: 600 });
     }
   };
 }
@@ -686,6 +713,7 @@ function SelectScene() {
           if (cleared) { ctx.strokeStyle = C.good; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x + cw / 2 - pw / 2 - 4, y0 + lift + 203); ctx.lineTo(x + cw / 2 + pw / 2 + 4, y0 + lift + 203); ctx.stroke(); }
         }
         const sy = y0 + lift + 248;
+        if (cleared && s.id === 4 && save.residual) { setFont(13, 600); const rtw = ctx.measureText('잔여 신호 ⚠').width + 18; rr(x + cw - rtw - 8, y0 + lift + 8, rtw, 24, 12); ctx.fillStyle = Math.floor(this.t * 2) % 2 ? 'rgba(160,30,40,0.95)' : 'rgba(110,20,30,0.95)'; ctx.fill(); txt('잔여 신호 ⚠', x + cw - rtw / 2 - 8, y0 + lift + 20, 13, '#ffd0c8', 'center', { weight: 600 }); }
         if (cleared) {
           rr(x + 30, sy - 20, cw - 60, 40, 20); ctx.fillStyle = C.good; ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.stroke();
           txt('바꿨어요 ✓', x + cw / 2, sy + 1, 19, C.ink, 'center');
@@ -694,8 +722,10 @@ function SelectScene() {
         else txt('출발 ▶', x + cw / 2, sy, 21, C.mustard, 'center');
       });
       if (save.badges.length) txt('운동 배지: ' + save.badges.join(' · '), 40, 650, 19, C.cream, 'left', { stroke: C.ink, sw: 5 });
+      fsButton(W - 676, H - 82, 190, 56, 19);
       button(W - 470, H - 82, 250, 56, '지구 기록 보관소', () => openArchive(), { size: 20, fill: C.tealL });
       button(W - 204, H - 82, 170, 56, '처음 화면', () => go(() => TitleScene()), { size: 20 });
+      drawFsNote();
     }
   };
 }
@@ -729,7 +759,7 @@ function ResultScene(r) {
         drawCardArt(W / 2 - 300, 412, 118, def.card, 1);
         txt('기술: ' + (D.skills[def.skill] ? D.skills[def.skill].name : ''), W / 2 + 10, 480, 23, C.tealL, 'left');
         txt('운동 배지: ' + def.badge, W / 2 + 10, 520, 23, C.amberL, 'left');
-        txt('스테이지 고르기에서 Q로 기술을 바꿔요', W / 2 + 10, 556, 16, '#bdb6e6', 'left', { weight: 600 });
+        txt('게임 중 「바꾸기」 버튼(키보드 Q)으로 기술을 바꿔요', W / 2 + 10, 556, 16, '#bdb6e6', 'left', { weight: 600 });
       }
       button(W / 2 - 300, 630, 280, 58, '스테이지 고르기', () => go(() => SelectScene()));
       button(W / 2 + 20, 630, 280, 58, '다시 하기', () => go(() => StageScene(r.id, { skipIntro: true })), { fill: '#d9d2f0' });
@@ -843,7 +873,8 @@ const SKILLS = {
   pulse: { cd: 7 },
   march: { cd: 14 },
   finish: { cd: 12 },
-  unity: { cd: 14 }
+  unity: { cd: 14 },
+  solidarity: { cd: 12 }
 };
 const xpNeed = lv => 20 + (lv - 1) * 18;
 
@@ -1133,7 +1164,97 @@ function layoutStage3() {
   L.rocks = [];
   return L;
 }
-const LAYOUTS = { 1: layoutStage1, 2: layoutStage2, 3: layoutStage3 };
+/* ----- 4스테이지 지도: 두 돔 사이 -----
+   왼쪽 벽 = 알파 돔, 오른쪽 벽 = 베타 돔. 벽에 붙은 발사대는 공격이 통하지 않고 서로를 향해 끝없이 쏜다.
+   아래에서 위로: A 알파 돔 출구(송신탑 1) → B 두 돔 사이 크레이터(송신탑 3, 다 켜면 무기 경쟁이 멈춤) → C 평화의 길 → 보스 */
+function layoutStage4() {
+  const L = {
+    w: 1600, h: 4900, start: { x: 800, y: 4790 },
+    arena: { x: 160, y: 0, w: 1280, h: 720 },
+    solids: [ { x: 0, y: 0, w: 160, h: 800 }, { x: 1440, y: 0, w: 160, h: 800 }, { x: 160, y: 720, w: 400, h: 80 }, { x: 1040, y: 720, w: 400, h: 80 } ],
+    walls: [], gens: [], zones: [], chips: [], caps: [],
+    restrict: { kind: 'arms', wall: 'wB', mission: '송신탑 켜기·문 열기',
+      free: { title: '평화의 목소리가 이어졌어요', sub: '두 돔의 포탑이 내려갔어요. 하지만 빨간 신호 하나가 아직 꺼지지 않고 깜박여요…', cheer: '평화!', joinN: 0 } },
+    missionWalls: ['wC', 'wB', 'wA'],
+    // 무기 경쟁: 처음 무기 수, 몇 초마다 한쪽이 늘리는지(다른 쪽이 곧 따라 늘린다)
+    armsRace: { start: 12, every: 3.2 },
+    // 송신탑을 켜는 데 혼자 버티는 시간(초). 동료 1명마다 35% 빨라진다
+    towerTime: 7,
+    bossPools: BOSS_POOLS4, bossPods: 4, residual: true,
+    legend: [
+      { k: 'hero', n: '나 (정착촌 학생)', t: '공명기로 가장 가까운 적을 자동으로 쏴요' },
+      { k: 'launcher', n: '미사일 발사대', t: '공격이 통하지 않아요. 쏠수록 두 돔의 무기가 늘어나요' },
+      { k: 'tower', n: '연대 송신탑', t: '원 안에서 버티면 켜져요. 동료가 많을수록 빨라요' },
+      { k: 'warn', n: '미사일 경고', t: '빨간 원이 뜨면 곧 미사일이 떨어져요. 원 밖으로!' },
+      { k: 'drone', n: '오더의 드론', t: '하얀 공 모양 기계. 주황 탄을 피하세요' },
+      { k: 'chip', n: '기록 칩', t: '실제 지구 역사 기록. 모두 모아야 보스 문이 열려요' }
+    ],
+    flow: ['송신탑 켜기', '무기 경쟁 멈추기', '기록 칩 모두 모으기', '보스를 증거로 반박'],
+    rules: [
+      { k: 'arms', n: '무기 경쟁 = 쏴서는 못 이겨요', d: '발사대는 공격이 통하지 않고, 쏠수록 두 돔의 무기가 늘어나요. 미사일은 끝없이 와요' },
+      { k: 'tower', n: '연대 송신탑', d: '원 안에서 버티면 켜져요. 동료가 많을수록 빨리 켜지고, 다 켜면 포탑이 내려가요' }
+    ]
+  };
+  const wall = (id, x, y, w, h, gens, o) => L.walls.push(Object.assign({ id, x, y, w, h, gens, active: true, fade: 1 }, o || {}));
+  const gen = (id, x, y, hp, o) => L.gens.push(Object.assign({ id, x, y, r: 32, hp: hp || 140, maxHp: hp || 140, alive: true, hitT: 0 }, o || {}));
+  const tower = (id, x, y, o) => gen(id, x, y, 1, Object.assign({ tower: true, r: 26, zone: 118, charge: 0 }, o || {}));
+  wall('wC', 130, 3964, 1340, 16, ['t1'], { offMsg: ['방어선이 열렸어요!', '두 돔 사이 크레이터로 나아가세요'] });
+  tower('t1', 800, 4250, { time: 9 });
+  wall('wB', 130, 1796, 1340, 16, ['t2', 't3', 't4'], { divider: true });
+  tower('t2', 470, 3450); tower('t3', 1130, 2850); tower('t4', 800, 2190);
+  wall('wA', 0, 796, 1600, 16, ['g3a', 'g3b', 'g3c']);
+  gen('g3a', 330, 935, 120); gen('g3b', 1270, 935, 120); gen('g3c', 800, 1330, 120);
+  wall('gate', 560, 712, 480, 16, [], { active: false, fade: 0, gate: true });
+  wall('recgate', 560, 744, 480, 16, [], { recordGate: true, soft: true });
+  L.zones = [
+    { y0: 3980, y1: 4900, exit: 'wC', check: { x: 800, y: 4790 }, label: 'A 구역 · 알파 돔 출구',
+      pool: ['drone', 'chaser'], max: 3, every: 4.5,
+      initial: [['drone', 560, 4420], ['drone', 1040, 4250], ['chaser', 800, 4080]] },
+    { y0: 1812, y1: 3964, exit: 'wB', check: { x: 800, y: 3900 }, label: 'B 구역 · 두 돔 사이 크레이터',
+      pool: ['drone', 'chaser', 'drone'], max: 4, every: 3.6,
+      initial: [['drone', 800, 2950, 'r4_npt'], ['drone', 640, 3700], ['chaser', 1000, 3150], ['drone', 560, 2400]] },
+    { y0: 812, y1: 1796, exit: 'wA', check: { x: 800, y: 1740 }, label: 'C 구역 · 평화의 길',
+      pool: ['drone', 'chaser', 'drone'], max: 6, every: 3.2,
+      initial: [['turret', 230, 1060], ['turret', 1370, 1060], ['guard', 800, 1120], ['drone', 480, 1420], ['chaser', 1120, 1460], ['drone', 1000, 1600]] }
+  ];
+  // 기록 칩 7개: A 2, B 2 + 드론이 가진 1(NPT), C 2
+  L.chips = [ ['r4_vietnam', 450, 4560], ['r4_protest', 1170, 4140], ['r4_withdrawal', 1250, 3620], ['r4_nuclear', 360, 2560], ['r4_iraq', 260, 1500], ['r4_ukraine', 800, 884] ]
+    .map(c => ({ id: c[0], x: c[1], y: c[2], t: Math.random() * 5, got: false }));
+  // 발사대: a = 알파 돔(왼쪽 벽, 오른쪽을 겨눔), b = 베타 돔(오른쪽 벽, 왼쪽을 겨눔). tower = 이 송신탑이 켜지면 접힌다
+  const lau = (side, y, tw, o) => Object.assign({ side, x: side === 'a' ? 172 : 1428, y, tower: tw, folded: false, foldK: 0, t: Math.random() * 5, fireT: rand(0.8, 3.5) }, o || {});
+  L.launchers = [
+    lau('a', 4660, 't1'), lau('b', 4470, 't1'), lau('a', 4220, 't1'), lau('b', 4060, 't1'),
+    lau('a', 3820, 't2'), lau('b', 3660, 't2'), lau('a', 3420, 't2'), lau('b', 3260, 't2'),
+    lau('a', 3060, 't3'), lau('b', 2900, 't3'), lau('a', 2700, 't3'), lau('b', 2560, 't3'),
+    lau('a', 2360, 't4'), lau('b', 2200, 't4'), lau('a', 1990, 't4'), lau('b', 1930, 't4', { residual: true }),
+    lau('a', 1560, null, { folded: true, foldK: 1 }), lau('b', 1400, null, { folded: true, foldK: 1 }), lau('a', 1120, null, { folded: true, foldK: 1 }), lau('b', 1000, null, { folded: true, foldK: 1 })
+  ];
+  [[560, 4400], [1060, 4520], [660, 3300], [960, 3020], [560, 2420], [1080, 2470], [520, 1200], [1080, 1200]]
+    .forEach(c => L.solids.push({ x: c[0] - 28, y: c[1] - 28, w: 56, h: 56, crate: true }));
+  // 두 돔의 벽(바깥으로 나갈 수 없다)
+  L.solids.push({ x: 0, y: 800, w: 130, h: 4100, dwall: 'a' }, { x: 1470, y: 800, w: 130, h: 4100, dwall: 'b' });
+  L.pads = [ { x: 560, y: 4700, w: 480, h: 190 }, { x: 660, y: 812, w: 280, h: 984 }, { x: 200, y: 862, w: 1200, h: 150 } ];
+  L.domes = [];
+  const sl = (stageById(4).slogans || []);
+  L.boards = [ { x: 330, y: 4890, text: sl[0] }, { x: 1150, y: 3930, text: sl[1] }, { x: 430, y: 1770, text: sl[2] } ].filter(b => b.text);
+  // 3스테이지에서 바뀐 것: 8시간만 일하게 된 사람들이 퇴근 뒤 평화 행진에 모였다
+  L.signs = [ { x: 1210, y: 4830, text: '평화 행진 모임' } ];
+  L.crowd = [ [1100, 4700, 1, Math.PI, '평화'], [1290, 4740, 2, Math.PI, '무기 말고 평화'], [1180, 4880, 0, Math.PI, ''], [420, 4790, 3, 0, '함께 걸어요'] ]
+    .map(c => ({ x: c[0], y: c[1], look: LOOKS[c[2]], aim: c[3], ph: Math.random() * 5, sign: c[4] }));
+  L.props = [ { kind: 'antenna', x: 300, y: 4800 }, { kind: 'tank', x: 1360, y: 4620 }, { kind: 'solar', x: 470, y: 1470 }, { kind: 'solar', x: 1130, y: 1470 }, { kind: 'tank', x: 1000, y: 1150 }, { kind: 'antenna', x: 1250, y: 1660 } ];
+  L.npcs = [];
+  L.rocks = [];
+  let seed = 23; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 320 && L.rocks.length < 90; i++) {
+    const x = 160 + rnd() * 1280, y = 830 + rnd() * 4040;
+    if (L.pads.some(p => x > p.x - 30 && x < p.x + p.w + 30 && y > p.y - 30 && y < p.y + p.h + 30)) continue;
+    if (L.gens.some(t => dist(x, y, t.x, t.y) < (t.zone || 60) + 30) || L.solids.some(s => !s.dwall && x > s.x - 40 && x < s.x + s.w + 40 && y > s.y - 40 && y < s.y + s.h + 40)) continue;
+    if (L.chips.some(c => dist(x, y, c.x, c.y) < 70) || L.walls.some(w => Math.abs(y - w.y) < 44)) continue;
+    L.rocks.push({ x, y, kind: y > 1800 && rnd() < 0.6 ? 'crater' : 'rock', s: 0.6 + rnd() * 0.9, a: rnd() * TAU });
+  }
+  return L;
+}
+const LAYOUTS = { 1: layoutStage1, 2: layoutStage2, 3: layoutStage3, 4: layoutStage4 };
 
 /* ----- 처음 하는 사람을 위한 단계별 안내 (1스테이지 A 구역) ----- */
 const touchUI = () => forceTouch || usingTouch || (isTouchDevice && !Object.keys(keys).length);
@@ -1147,8 +1268,8 @@ const LAYOUTS_COACH = {
     const wC = () => wallById('wC');
     const gensC = () => G.gens.filter(g => g.alive && wC().gens.includes(g.id));
     return [
-      { title: '먼저 움직여 보세요', sub: () => touchUI() ? '왼쪽 화면을 손가락으로 끌면 움직여요' : 'WASD 또는 방향키로 움직여요', done: c => c.moved > 160 },
-      { title: '공명 파동을 써 보세요', sub: () => touchUI() ? "오른쪽 아래 '파동' 버튼: 둘레의 주황 탄을 지우고 드론을 밀어내요" : 'E 키: 둘레의 주황 탄을 지우고 드론을 밀어내요 (7초마다 쓸 수 있어요)',
+      { title: '먼저 움직여 보세요', sub: () => '왼쪽 화면을 손가락으로 끌면 움직여요 (키보드: WASD·방향키)', done: c => c.moved > 160 },
+      { title: '공명 파동을 써 보세요', sub: () => "오른쪽 아래 '파동' 버튼: 둘레의 주황 탄을 지우고 드론을 밀어내요 (키보드: E)",
         done: () => G.skillUsed, skipAfter: 15 },
       { title: '드론에게 다가가 보세요', sub: () => '하얀 공 모양 드론이 오더의 기계예요. 공격은 자동! 가까이 가면 알아서 쏴요', done: () => G.stats.kills >= 1,
         target: () => nearestOf(G.enemies.filter(e => !e.dead)), skipAfter: 15 },
@@ -1175,6 +1296,15 @@ const LAYOUTS_COACH = {
       { title: '문 발생기를 부수세요', sub: () => '', done: () => gensC().length < 2, target: () => nearestOf(gensC()) },
       { title: '남은 발생기도 부수세요', sub: () => '', done: () => !wC().active, target: () => nearestOf(gensC()) },
       { title: '문이 열렸어요! 위로 나아가세요 ▲', sub: () => '', done: () => G.zoneIdx !== 0, target: () => ({ x: G.P.x, y: 3100 }) }
+    ];
+  },
+  4: () => {
+    const t1 = () => G.gens.find(g => g.id === 't1');
+    const nearLauncher = () => nearestOf((G.L.launchers || []).filter(l => !l.folded && l.tower === 't1'));
+    return [
+      { title: '미사일 발사대를 쏴 보세요', sub: () => '', done: () => (G.armsHits || 0) >= 3, target: () => { const l = nearLauncher(); return l && { x: l.x + (l.side === 'a' ? 200 : -200), y: l.y }; }, skipAfter: 14 },
+      { title: '쏴도 안 돼요! 연대 송신탑 원 안에서 버티세요', sub: () => '', done: () => !t1().alive, target: () => t1() },
+      { title: '방어선이 열렸어요! 위로 나아가세요 ▲', sub: () => '', done: () => G.zoneIdx !== 0, target: () => ({ x: G.P.x, y: 3900 }) }
     ];
   }
 };
@@ -1254,6 +1384,8 @@ function newRun(stageId, opts) {
   G.cutI = 0; G.cutT = 0; G.cutFull = false;
   G.briefT = 0; G.tip = null; G.tipsSeen = {};
   G.work = L.work ? { n: 0, carry: false, done: false } : null; G.shiftH = 0; G.nightA = 0; G.bellK = 3;
+  G.shells = []; G.residualOrb = null; G.armsHits = 0;
+  G.arms = L.armsRace ? { a: L.armsRace.start, b: L.armsRace.start } : null; G.armsT = L.armsRace ? L.armsRace.every : 0; G.armsFlash = { a: 0, b: 0 }; G.armsFollow = null;
   G.restricted = !!L.restrict; G.npcs = L.npcs || []; G.freeT = -99;
   G.race = L.race ? { on: false, done: false, camY: 0, grace: 0, v: L.race.v } : null;
   G.runners = (L.runners || []).map(r => Object.assign({ t: Math.random() * 5, moving: false, boostT: 0 }, r));
@@ -1308,6 +1440,7 @@ function collide(o, isPlayer) {
     if (isPlayer && (w.barrier || w.denyText)) { G.denyAt = G.t; G.denyMsg = w.denyText || '출전 금지 · 지구 출신'; }
   }
   for (const g of G.gens) if (g.alive) pushOutCircle(o, g.x, g.y, g.r);
+  for (const l of G.L.launchers || []) pushOutCircle(o, l.x, l.y, 30);
   if (isPlayer) {
     for (const c of G.caps) if (!c.freed) pushOutCircle(o, c.x, c.y, 24);
     if (G.boss && !G.boss.dead) pushOutCircle(o, G.boss.x, G.boss.y, 86);
@@ -1464,9 +1597,10 @@ function respawn() {
 function findTarget(x, y, range) {
   let best = null, bd = range;
   for (const e of G.enemies) { if (e.dead || e.spawnT > 0) continue; const d = dist(x, y, e.x, e.y) - e.r; if (d < bd && !segBlocked(x, y, e.x, e.y)) { bd = d; best = e; } }
-  for (const g of G.gens) { if (!g.alive || genShielded(g)) continue; const d = dist(x, y, g.x, g.y) - g.r; if (d < bd && !segBlocked(x, y, g.x, g.y)) { bd = d; best = g; } }
+  for (const g of G.gens) { if (!g.alive || genShielded(g) || g.tower) continue; const d = dist(x, y, g.x, g.y) - g.r; if (d < bd && !segBlocked(x, y, g.x, g.y)) { bd = d; best = g; } }
   const b = G.boss;
   if (b && !b.dead && b.dying <= 0) { const d = dist(x, y, b.x, b.y) - 70; if (d < bd) { best = b; } }
+  if (!best) for (const l of G.L.launchers || []) { if (l.folded) continue; const d = dist(x, y, l.x, l.y) - 30; if (d < Math.min(range, 250) && d < bd) { bd = d; best = l; } }
   return best;
 }
 function fireWave(x, y, a, dmg, n, kind, range) {
@@ -1484,6 +1618,7 @@ function useSkill() {
   if (id === 'pulse') { G.pulses.push({ x: P.x, y: P.y, r: 10, max: 260, hit: new Set() }); G.shake = Math.max(G.shake, 5); }
   if (id === 'march') { P.marchT = 4; banner(D.skills.march.name, '', C.tealL, 1.2); }
   if (id === 'finish') { P.runT = 3; banner(D.skills.finish.name, '', C.tealL, 1.2); }
+  if (id === 'solidarity') { P.shieldT = 4; banner(D.skills.solidarity.name, '', C.tealL, 1.2); G.settlers.forEach(s => burst(s.x, s.y, C.tealL, 8, 160)); }
   if (id === 'unity') { P.unityT = 5; banner(D.skills.unity.name, '', C.tealL, 1.2); G.settlers.forEach(s => burst(s.x, s.y, C.tealL, 8, 160)); }
   Sound.play('good');
 }
@@ -1529,6 +1664,8 @@ function closeRecord() {
 const BOSS_POOLS = [['spread', 'ring'], ['spread', 'ring', 'split'], ['ring', 'split', 'sweep', 'spread'], ['split', 'sweep', 'ring', 'spread']];
 // 배제 모듈: 내려오는 차단막(bars), 출전 구역 제한(area)
 // 24/7 시계탑: 시곗바늘 레이저(hand), 벨트 바닥(floor)
+// 군비 모듈: 양쪽에서 날아오는 교차 사격(cross), 떨어지는 미사일 경고 원(barrage)
+const BOSS_POOLS4 = [['barrage', 'spread'], ['cross', 'barrage', 'ring'], ['cross', 'barrage', 'spread', 'ring'], ['barrage', 'cross', 'ring', 'spread']];
 const BOSS_POOLS3 = [['hand', 'spread'], ['hand', 'ring', 'floor'], ['floor', 'hand', 'spread', 'ring'], ['hand', 'floor', 'ring', 'spread']];
 const BOSS_POOLS2 = [['bars', 'spread'], ['bars', 'ring', 'area'], ['area', 'bars', 'spread', 'ring'], ['bars', 'area', 'ring', 'spread']];
 function startBoss() {
@@ -1539,6 +1676,7 @@ function startBoss() {
   const hp = 4000 * G.hpMul;
   G.boss = { def: G.def.boss, x: 800, y: 290, hp, maxHp: hp, round: 0, shield: true, stun: 0, t: 0, pat: null, patT: 2.2,
              orbs: [], orbT: 1.6, orbsUp: false, dying: 0, dead: false, flash: 0, lasers: [], breakT: 0 };
+  G.shells = []; if (G.L.bossPods) G.boss.pods = G.L.bossPods;
   G.mode = 'bossIntro'; G.introT = 0;
 }
 function bossThreshold(b) { return b.maxHp * (1 - (b.round + 1) / b.def.rounds.length); }
@@ -1645,6 +1783,7 @@ function resolveOrb(b, orb) {
     b.stun = 1.8; b.pat = null; b.lasers = []; G.eB = [];
     G.shake = 14; burst(b.x, b.y, C.tealL, 30, 340); burst(orb.x, orb.y, C.mustard, 20, 260);
     gainXp(30);
+    if (G.L.bossPods) { b.pods = Math.max(0, b.pods - 1); addText(b.x, b.y - 170, '미사일 포대 하나가 접혔어요', C.tealL, 22); }
     G.rebut = { opt: o, claim: b.def.rounds[b.round].claim }; G.rebutT = 0; G.mode = 'rebut'; ui.focus = 0;
     Sound.play('good');
   } else {
@@ -1664,7 +1803,8 @@ function updateBoss(dt) {
   b.t += dt; if (b.flash > 0) b.flash -= dt; if (b.breakT > 0) b.breakT -= dt;
   if (b.dying > 0) {
     b.dying -= dt;
-    if (Math.random() < dt * 14) burst(b.x + rand(-90, 90), b.y + rand(-110, 90), pick([C.amber, C.cream, C.tealL]), 10, 260);
+    if (G.L.residual && !G.residualOrb) { G.residualOrb = { x: b.x, y: b.y - 60, t: 0 }; G.shells = []; banner('군비 모듈 정지…', '하지만 잔여 신호 하나가 빠져나갔어요. 아직 끝이 아니에요', C.bad, 3.2); }
+    if (Math.random() < dt * (G.L.residual ? 6 : 14)) burst(b.x + rand(-90, 90), b.y + rand(-110, 90), pick([C.amber, C.cream, C.tealL]), 10, 260);
     G.shake = Math.max(G.shake, 4);
     if (b.dying <= 0) { b.dead = true; burst(b.x, b.y, C.mustard, 60, 420); stageClear(); }
     return;
@@ -1721,6 +1861,23 @@ function updateBoss(dt) {
       b.lasers = [{ kind: 'area', x0: sx - hw, x1: sx + hw, warn }];
       if (!warn && !P.dead && P.y > 430 && (P.x < sx - hw || P.x > sx + hw)) hurtPlayer(15, P.x < sx ? P.x - 30 : P.x + 30, P.y);
       if (p.t > 2.7) cool();
+    } else if (p.kind === 'cross') {
+      // 양쪽 끝에서 탄 줄이 번갈아 날아온다. 비어 있는 두 줄 사이로 피한다
+      const waves = b.round >= 2 ? 4 : 3;
+      if (p.n < waves && p.t >= p.n * 0.85) {
+        const fromLeft = p.n % 2 === 0, gapAt = Math.floor(rand(0, 5));
+        for (let r = 0; r < 6; r++) { if (r === gapAt || r === gapAt + 1) continue; enemyShot(fromLeft ? a.x + 12 : a.x + a.w - 12, 452 + r * 44, fromLeft ? 0 : Math.PI, 250 * mul, 9); }
+        p.n++;
+      }
+      if (p.t > waves * 0.85 + 2.4) cool();
+    } else if (p.kind === 'barrage') {
+      // 남은 포대 수만큼 미사일이 떨어진다(경고 원 밖으로)
+      const per = 2 + (b.pods || 0);
+      if (p.n < 3 && p.t >= p.n * 0.95) {
+        for (let k = 0; k < per; k++) G.shells.push({ x: clamp(P.x + (k ? rand(-230, 230) : 0), a.x + 70, a.x + a.w - 70), y: clamp(P.y + (k ? rand(-120, 120) : 0), 430, a.h - 40), t: -k * 0.12, warn: 1.15, r: 66 });
+        p.n++;
+      }
+      if (p.t > 3 * 0.95 + 1.7) cool();
     } else if (p.kind === 'hand') {
       // 시곗바늘 레이저가 경기장을 쓸고 지나간다. 앞서 달리거나 대시로 넘는다
       if (p.dir == null) p.dir = Math.random() < 0.5 ? 1 : -1;
@@ -1751,6 +1908,7 @@ function stageClear() {
   G.clearStep = G.def.change ? 0 : 1;
   const d = G.def, s = save;
   s.cleared[d.id] = true;
+  if (G.L.residual) s.residual = true;
   if (d.card) s.cards[d.card.id] = true;
   if (d.skill && !s.skills.includes(d.skill)) s.skills.push(d.skill);
   if (d.badge && !s.badges.includes(d.badge)) s.badges.push(d.badge);
@@ -1820,10 +1978,10 @@ function drawRules() {
   txt('시작 전에 알아 두기', W / 2, 70, 42, C.mustard, 'center', { weight: 900, stroke: C.ink, sw: 6 });
   const tch = touchUI();
   const items = [
-    { k: 'move', n: '이동', d: tch ? '왼쪽 화면을 손가락으로 끌어요' : 'WASD 또는 방향키' },
+    { k: 'move', n: '이동', d: '왼쪽 화면을 손가락으로 끌어요 (키보드: WASD·방향키)' },
     { k: 'shoot', n: '공격은 자동', d: '가까운 적과 발생기를 알아서 쏴요' },
-    { k: 'pulse', n: '공명 파동', d: (tch ? "'파동' 버튼" : 'E 키') + ': 둘레의 주황 탄을 지우고 드론을 밀어내요 (7초마다)' },
-    { k: 'dash', n: '대시', d: (tch ? '대시 버튼' : 'Shift·Space') + ': 짧게 빨리 움직이고, 그동안 탄에 맞지 않아요' }
+    { k: 'pulse', n: '공명 파동', d: "'파동' 버튼(키보드 E): 둘레의 주황 탄을 지우고 드론을 밀어내요. 둘레 게이지가 차면 다시 써요" },
+    { k: 'dash', n: '대시', d: "'대시' 버튼(키보드 Shift·Space): 짧게 빨리 움직이고, 그동안 탄에 맞지 않아요" }
   ];
   if (G.L.rules) G.L.rules.forEach(r => items.push(r));
   else {
@@ -1851,14 +2009,18 @@ function drawRuleIcon(k, x, y) {
   const t = G.t;
   ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   if (k === 'move') {
-    const keyb = (kx, ky, l) => { rr(kx - 13, ky - 13, 26, 26, 6); ctx.fillStyle = C.cream; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.ink; ctx.stroke(); txt(l, kx, ky + 1, 15, C.ink, 'center', { weight: 900 }); };
-    keyb(x, y - 15, 'W'); keyb(x - 28, y + 14, 'A'); keyb(x, y + 14, 'S'); keyb(x + 28, y + 14, 'D');
+    ctx.fillStyle = 'rgba(255,244,220,0.14)'; circle(x, y, 30); ctx.fill(); ctx.strokeStyle = 'rgba(255,244,220,0.6)'; ctx.lineWidth = 2.5; ctx.stroke();
+    const kx = x + Math.cos(t * 2) * 12, ky = y + Math.sin(t * 2) * 12;
+    ctx.fillStyle = C.cream; circle(kx, ky, 12); ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#f6d2b0'; rr(kx - 5, ky - 2, 11, 22, 5); ctx.fill(); ctx.stroke();
   } else if (k === 'shoot') { drawHeroAt(x - 12, y + 14, 0, t, false, 1, { noShadow: true }); ctx.strokeStyle = C.tealL; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x + 22, y - 6, 8, -0.8, 0.8); ctx.stroke(); ctx.beginPath(); ctx.arc(x + 32, y - 6, 8, -0.8, 0.8); ctx.stroke(); }
   else if (k === 'pulse') { ctx.strokeStyle = C.tealL; ctx.lineWidth = 4; circle(x, y, 14 + (t * 20) % 22); ctx.stroke(); ctx.lineWidth = 2; circle(x, y, 32); ctx.stroke(); ctx.fillStyle = C.orange; circle(x + 24, y - 20, 5); ctx.fill(); circle(x - 26, y + 18, 5); ctx.fill(); }
   else if (k === 'dash') { ctx.fillStyle = C.mustard; ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x - 22, y - 14); ctx.lineTo(x + 2, y); ctx.lineTo(x - 22, y + 14); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x - 2, y - 14); ctx.lineTo(x + 22, y); ctx.lineTo(x - 2, y + 14); ctx.closePath(); ctx.fill(); ctx.stroke(); }
   else if (k === 'earth') { ctx.fillStyle = '#6cc0ff'; circle(x, y, 22); ctx.fill(); ctx.fillStyle = '#5fb07a'; circle(x - 7, y - 5, 9); ctx.fill(); circle(x + 9, y + 8, 7); ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; circle(x, y, 22); ctx.stroke(); }
   else if (k === 'gem') { [[-14, 6], [6, -10], [14, 12]].forEach(([dx, dy]) => { ctx.save(); ctx.translate(x + dx, y + dy); ctx.rotate(t * 2); ctx.fillStyle = C.tealL; ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(7, 0); ctx.lineTo(0, 9); ctx.lineTo(-7, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }); }
   else if (k === 'chip') drawChipIcon(x, y, 1.4, t);
+  else if (k === 'arms') { [[-1, C.orange], [1, C.orange]].forEach(([s2, col], i) => { const h2 = 18 + ((t * 8 + i * 3) % 14); ctx.fillStyle = col; ctx.fillRect(x + s2 * 14 - 8, y + 20 - h2, 16, h2); ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.strokeRect(x + s2 * 14 - 8, y + 20 - h2, 16, h2); }); ctx.strokeStyle = C.bad; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x - 22, y - 22); ctx.lineTo(x + 22, y + 22); ctx.moveTo(x + 22, y - 22); ctx.lineTo(x - 22, y + 22); ctx.globalAlpha = 0.0; ctx.stroke(); ctx.globalAlpha = 1; txt('↑', x - 14, y - 18, 18, C.amberL, 'center', { weight: 900 }); txt('↑', x + 14, y - 18, 18, C.amberL, 'center', { weight: 900 }); }
+  else if (k === 'tower') { ctx.save(); ctx.translate(x, y + 40); ctx.scale(0.42, 0.42); drawTower({ x: 0, y: 0, alive: true, zone: 80, charge: (t * 0.3) % 1, inside: false }); ctx.restore(); }
   else if (k === 'belt24') { ctx.fillStyle = '#f1e8d8'; circle(x, y, 30); ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke(); ctx.strokeStyle = C.red; ctx.lineWidth = 6; circle(x, y, 23); ctx.stroke(); txt('24', x, y + 2, 20, C.red, 'center', { weight: 900 }); }
   else if (k === 'unity') { drawChibi(x - 20, y + 16, t, false, 0, LOOKS[1], { noShadow: true, noPack: true, scale: 0.85 }); drawChibi(x + 20, y + 16, t, false, 0, LOOKS[3], { noShadow: true, noPack: true, scale: 0.85 }); drawChibi(x, y + 20, t, false, 0, LOOKS[0], { noShadow: true, noPack: true }); }
   else if (k === 'bib') { ctx.fillStyle = '#fff'; ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; rr(x - 24, y - 18, 48, 36, 5); ctx.fill(); ctx.stroke(); ctx.strokeStyle = C.bad; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(x - 13, y - 10); ctx.lineTo(x + 13, y + 10); ctx.moveTo(x + 13, y - 10); ctx.lineTo(x - 13, y + 10); ctx.stroke(); }
@@ -1914,6 +2076,7 @@ function updatePlay(dt) {
   if (P.marchT > 0) P.marchT -= dt;
   if (P.runT > 0) P.runT -= dt;
   if (P.unityT > 0) P.unityT -= dt;
+  if (P.shieldT > 0) P.shieldT -= dt;
   if (G.skillCd > 0) G.skillCd -= dt;
   // 자동 발사
   P.fireT -= dt; if (P.glow > 0) P.glow -= dt * 3;
@@ -1961,9 +2124,11 @@ function updatePlay(dt) {
     for (const e of G.enemies) { if (e.dead || e.spawnT > 0) continue; if (dist(b.x, b.y, e.x, e.y) < e.r + b.r) { damageEnemy(e, b.dmg); b.life = 0; burst(b.x, b.y, C.tealL, 3, 100, 3); break; } }
     if (b.life <= 0) continue;
     for (const g of G.gens) {
-      if (!g.alive) continue;
+      if (!g.alive || g.tower) continue;
       if (dist(b.x, b.y, g.x, g.y - 22) < g.r + b.r) { damageGen(g, b.dmg); b.life = 0; burst(b.x, b.y, C.amber, 3, 100, 3); break; }
     }
+    if (b.life <= 0) continue;
+    for (const l of G.L.launchers || []) { if (!l.folded && dist(b.x, b.y, l.x, l.y - 8) < 34 + b.r) { b.life = 0; burst(b.x, b.y, C.amberL, 5, 150, 3); armsHit(l, b.kind === 'p'); break; } }
     if (b.life <= 0) continue;
     const bo = G.boss;
     if (bo && !bo.dead && bo.dying <= 0 && dist(b.x, b.y, bo.x, bo.y) < (bo.shield ? 152 : 100) + b.r) { damageBoss(b.dmg, b.x, b.y); b.life = 0; }
@@ -1976,7 +2141,7 @@ function updatePlay(dt) {
     if (G.walls.some(w => w.active && !w.barrier && inRectPad(b.x, b.y, w, 2)) || G.L.solids.some(s => inRectPad(b.x, b.y, s, 0)) || (G.L.domes || []).some(d => dist(b.x, b.y, d.x, d.y) < d.r)) { b.life = 0; continue; }
     if (P.dead) continue;
     const d = dist(b.x, b.y, P.x, P.y - 4);
-    if ((P.marchT > 0 || P.runT > 0) && d < 50) { b.life = 0; burst(b.x, b.y, C.tealL, 4, 120, 3); continue; }
+    if ((P.marchT > 0 || P.runT > 0 || P.shieldT > 0) && d < (P.shieldT > 0 ? 80 : 50)) { b.life = 0; burst(b.x, b.y, C.tealL, 4, 120, 3); continue; }
     if (d < b.r + P.r * 0.7) { if (P.inv <= 0 && P.dashT <= 0) { hurtPlayer(10, b.x, b.y); b.life = 0; } }
   }
   G.eB = G.eB.filter(b => b.life > 0);
@@ -1989,7 +2154,7 @@ function updatePlay(dt) {
       p.hit.add(e); damageEnemy(e, 25 * st.dmg / 10);
       const a = Math.atan2(e.y - p.y, e.x - p.x); if (e.speed > 0) moveBody(e, Math.cos(a) * 90, Math.sin(a) * 90, false);
     }
-    for (const g of G.gens) if (g.alive && !p.hit.has(g) && dist(g.x, g.y, p.x, p.y) < p.r + g.r) { p.hit.add(g); damageGen(g, 30); }
+    for (const g of G.gens) if (g.alive && !g.tower && !p.hit.has(g) && dist(g.x, g.y, p.x, p.y) < p.r + g.r) { p.hit.add(g); damageGen(g, 30); }
     if (G.boss && !p.hit.has(G.boss) && dist(G.boss.x, G.boss.y, p.x, p.y) < p.r + 80) { p.hit.add(G.boss); damageBoss(40, G.boss.x, G.boss.y + 60); }
   }
   G.pulses = G.pulses.filter(p => p.r < p.max);
@@ -2053,7 +2218,7 @@ function updatePlay(dt) {
   if (rg && rg.active && recordsLeft() === 0) { rg.active = false; rg.fade = 1; banner('기록 문이 열렸어요!', '기록을 모두 모았어요. 이제 보스 구역으로 들어가요', C.tealL, 3.5); Sound.play('good'); }
   if (!G.boss && !wallById('wA').active && P.y < 690 && !P.dead) startBoss();
   if (G.boss && !G.boss.dead) updateBoss(dt);
-  updateRace(dt); updateBoosts(dt); updateRunners(dt); updateFactory(dt);
+  updateRace(dt); updateBoosts(dt); updateRunners(dt); updateFactory(dt); updateArms(dt);
   updateCoach(dt); updateTips(dt); updateNpcs(dt);
   updateFx(dt);
   // 카메라
@@ -2081,6 +2246,7 @@ function damageGen(g, dmg) {
   g.hp -= dmg; g.hitT = 0.1;
   if (g.hp > 0) return;
   g.alive = false; G.shake = Math.max(G.shake, 10);
+  if (g.tower) onTowerLit(g);
   burst(g.x, g.y - 20, C.amber, 30, 320); burst(g.x, g.y - 20, C.cream, 14, 200);
   gainXp(8); Sound.play('boom');
   const freed = G.walls.some(w => w.active && w.divider && w.gens.every(id => !G.gens.find(x => x.id === id).alive));
@@ -2115,6 +2281,8 @@ function liberate() {
   G.runners.forEach(r => addText(r.x, r.y - 54, '같이 달리자!', C.mustard, 18));
   // 퇴장 드론은 멈춘다
   G.enemies.forEach(e => { if (e.type === 'ejector' && !e.dead) { e.dead = true; burst(e.x, e.y, C.mustard, 10, 200); addText(e.x, e.y - 30, '정지', C.good, 17); } });
+  (G.L.launchers || []).forEach(l => { if (l.residual) { l.folded = true; l.foldK = 0; l.resid = true; } else foldLauncher(l); });
+  G.shells = [];
   G.tipsSeen.ally = true;
   showNotice(fr.title || '분리선 해제!', (fr.sub || '이제 어디든 갈 수 있고 대시도 쓸 수 있어요. 화성 태생 주민 2명이 함께해요!') + ' (동료 ' + G.settlers.length + '명 · 공격 +' + G.settlers.length * 10 + '%)', '✓');
 }
@@ -2274,6 +2442,89 @@ function finishWork() {
   (wk.spawn || []).forEach(s => spawnEnemy(s[0], s[1], s[2], 0));
   if (G.coach) { G.coach.st = 0; G.coach.showAt = G.t; }
 }
+/* ----- 4스테이지: 무기 경쟁, 발사대, 미사일, 연대 송신탑 ----- */
+function armsHit(l, mine) {
+  if (G.t - (l.hitT || -9) > 0.45) {
+    l.hitT = G.t;
+    if (mine && G.restricted && G.arms) { G.arms[l.side]++; G.armsFlash[l.side] = 1; G.armsHits = (G.armsHits || 0) + 1; }
+  }
+  if (mine && G.t - (G.armsWarnT || -9) > 2.6) { G.armsWarnT = G.t; addText(l.x + (l.side === 'a' ? 150 : -150), l.y - 70, '통하지 않아요! 쏠수록 무기가 늘어나요', C.bad, 19); }
+}
+function foldLauncher(l) { if (l.folded) return; l.folded = true; l.foldK = 0; burst(l.x, l.y - 20, C.tealL, 14, 200); }
+function onTowerLit(g) {
+  const L = G.L, towers = G.gens.filter(x => x.tower), n = towers.filter(x => !x.alive).length;
+  (L.launchers || []).forEach(l => { if (l.tower === g.id && !l.residual) foldLauncher(l); });
+  if (G.arms) { G.arms.a = Math.max(0, G.arms.a - 4); G.arms.b = Math.max(0, G.arms.b - 4); }
+  G.shells = G.shells.filter(s => dist(s.x, s.y, g.x, g.y) > 260);
+  // 두 돔 사람들이 송신탑 둘레로 나와 팻말을 든다. 한 명은 동료가 된다
+  const signs = ['평화', '전쟁 반대', '무기 말고 평화', '함께해요'];
+  for (let k = 0; k < 4; k++) {
+    const a = k / 4 * TAU + 0.5;
+    L.crowd.push({ x: g.x + Math.cos(a) * 158, y: g.y + 18 + Math.sin(a) * 100, look: LOOKS[(k * 2 + n) % LOOKS.length], aim: Math.cos(a) > 0 ? Math.PI : 0, ph: Math.random() * 5, sign: signs[k] });
+  }
+  G.settlers.push({ look: LOOKS[(n + 3) % LOOKS.length], x: g.x + 50, y: g.y + 40, t: 0, fireT: 0.5, aim: 0, moving: false });
+  burst(g.x, g.y - 96, C.tealL, 40, 320);
+  if (!G.tipsSeen.ally) showAllyTip();
+  else banner('연대 송신탑 ' + n + '/' + towers.length + ' 켜짐!', '두 돔 사람들이 함께해요 · 둘레 발사대가 내려갔어요 (동료 ' + G.settlers.length + '명)', C.tealL, 3);
+}
+function updateArms(dt) {
+  const L = G.L, P = G.P;
+  // 미사일 경고 원: 시간이 되면 떨어져 터진다(보스전에서도 쓴다)
+  for (const s of G.shells) {
+    s.t += dt;
+    if (s.t >= s.warn && !s.boom) {
+      s.boom = true; burst(s.x, s.y, C.orange, 22, 260); burst(s.x, s.y, C.cream, 10, 180); G.shake = Math.max(G.shake, 5);
+      if (!P.dead && dist(P.x, P.y, s.x, s.y) < s.r + P.r * 0.5) {
+        if (P.shieldT > 0) addText(P.x, P.y - 60, '막았어요!', C.tealL, 20);
+        else hurtPlayer(9, s.x, s.y);
+      }
+    }
+  }
+  G.shells = G.shells.filter(s => s.t < s.warn + 0.35);
+  if (G.residualOrb) G.residualOrb.t += dt;
+  if (!L.launchers) return;
+  for (const l of L.launchers) { l.t += dt; if (l.folded && l.foldK < 1) l.foldK = Math.min(1, l.foldK + dt * 2); }
+  const ar = L.armsRace;
+  if (G.arms) {
+    for (const k of ['a', 'b']) if (G.armsFlash[k] > 0) G.armsFlash[k] -= dt * 2;
+    if (G.restricted) {
+      // 무기 경쟁: 한쪽이 늘리면 다른 쪽이 곧 따라 늘린다
+      G.armsT -= dt;
+      if (G.armsT <= 0) {
+        G.armsT = ar.every;
+        const s = Math.random() < 0.5 ? 'a' : 'b', o = s === 'a' ? 'b' : 'a';
+        G.arms[s]++; G.armsFlash[s] = 1;
+        G.armsFollow = { side: o, t: 0.9, to: G.arms[s] + (Math.random() < 0.5 ? 1 : 0) };
+      }
+      if (G.armsFollow) { G.armsFollow.t -= dt; if (G.armsFollow.t <= 0) { const f = G.armsFollow; G.arms[f.side] = Math.max(G.arms[f.side] + 1, f.to); G.armsFlash[f.side] = 1; G.armsFollow = null; } }
+    } else { G.arms.a = Math.max(0, G.arms.a - dt * 9); G.arms.b = Math.max(0, G.arms.b - dt * 9); }
+  }
+  // 송신탑: 원 안에서 버티면 켜진다. 동료가 많을수록 빨리 켜진다
+  for (const t of G.gens) {
+    if (!t.tower || !t.alive) continue;
+    t.inside = !P.dead && G.mode === 'play' && dist(P.x, P.y, t.x, t.y) < t.zone;
+    if (t.inside) { t.charge = Math.min(1, t.charge + dt / (t.time || L.towerTime) * (1 + 0.35 * G.settlers.length)); if (t.charge >= 1) damageGen(t, 1e9); }
+    else t.charge = Math.max(0, t.charge - dt * 0.04);
+  }
+  if (!G.restricted || G.arenaLock || P.dead) return;
+  // 발사대: 공격이 통하지 않고, 무기가 늘수록 더 자주 쏜다
+  const esc = G.arms ? 1 + clamp((G.arms.a + G.arms.b - 2 * ar.start) / 40, 0, 0.6) : 1;
+  for (const l of L.launchers) {
+    if (l.folded || Math.abs(l.y - P.y) > 480) continue;
+    l.fireT -= dt * esc;
+    if (l.fireT > 0) continue;
+    l.fireT = rand(5.0, 7.0);
+    const dir = l.side === 'a' ? 1 : -1;
+    if (Math.random() < 0.55) {
+      const lead = P.moving ? 70 : 0;
+      G.shells.push({ x: clamp(P.x + rand(-70, 70) + P.last.x * lead, 170, 1430), y: clamp(P.y + rand(-60, 60) + P.last.y * lead, 830, L.h - 30), t: 0, warn: 1.4, r: 70 });
+      l.flash = 0.3;
+    } else {
+      for (let k = -1; k <= 1; k++) enemyShot(l.x + dir * 34, l.y - 12, (dir > 0 ? 0 : Math.PI) + k * 0.12, 215, 8);
+      l.flash = 0.3;
+    }
+  }
+}
 function updateNpcs(dt) {
   if (G.arenaLock) return;
   for (const n of G.npcs) {
@@ -2325,7 +2576,7 @@ function drawStageIntro() {
   panel(24, 24, tw, 48, { fill: 'rgba(27,24,56,0.92)', stroke: C.mustard, r: 24, lw: 3 }); txt(label, 24 + tw / 2, 49, 24, C.amberL, 'center', { weight: 900 });
   if (G.cutFull) txt('▼', bx + bw - 40, by + bh - 28 + Math.sin(G.t * 6) * 3, 20, C.mustard, 'center');
   button(W - 190, 24, 166, 48, '건너뛰기 ▶▶', () => endCuts(), { size: 18, focusable: false });
-  txt('클릭 · Enter: 다음', W / 2, H - 20, 16, 'rgba(255,244,220,0.8)', 'center', { weight: 600 });
+  txt('화면을 눌러 다음 (키보드: Enter)', W / 2, H - 20, 16, 'rgba(255,244,220,0.8)', 'center', { weight: 600 });
 }
 function drawStage() {
   if (G.mode === 'intro') { drawStageIntro(); return; }
@@ -2345,20 +2596,26 @@ function drawStage() {
   }
   for (const gm of G.gems) if (vis(gm.x, gm.y, 20)) { ctx.save(); ctx.translate(gm.x, gm.y); ctx.rotate(G.t * 3); ctx.fillStyle = C.tealL; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(5, 0); ctx.lineTo(0, 6); ctx.lineTo(-5, 0); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore(); }
   for (const c of G.caps) if (vis(c.x, c.y, 80)) drawCapsule(c);
-  for (const g of G.gens) if (vis(g.x, g.y, 80)) { if (isTargetGen(g)) drawTargetRing(g); drawGen(g); }
+  for (const g of G.gens) if (vis(g.x, g.y, 160)) { if (isTargetGen(g) && !g.tower) drawTargetRing(g); drawGen(g); }
   if (G.boss && !G.boss.dead) drawBoss(G.boss);
   const actors = [];
   for (const e of G.enemies) if (vis(e.x, e.y, 60)) actors.push({ y: e.y, f: () => drawEnemy(e, G.t) });
   G.settlers.forEach(s => actors.push({ y: s.y, f: () => drawChibi(s.x, s.y, s.t, s.moving, s.aim, s.look, { scale: 1.1, noPack: true }) }));
   G.npcs.forEach(n => { if (vis(n.x, n.y, 60)) actors.push({ y: n.y, f: () => drawChibi(n.x, n.y, n.t, n.moving, n.aim || 0, n.look, { scale: 1.1, noPack: true, closed: !!(n.post && G.restricted) }) }); });
   G.runners.forEach(r => { if (vis(r.x, r.y, 60)) actors.push({ y: r.y, f: () => drawChibi(r.x, r.y, r.t, r.moving, -Math.PI / 2, r.look, { scale: 1.1, noPack: true, bib: r.bib }) }); });
-  (G.L.crowd || []).forEach(c => { if (vis(c.x, c.y, 60)) actors.push({ y: c.y, f: () => drawChibi(c.x, c.y, G.t + c.ph, false, c.aim, c.look, { scale: 1.1, noPack: true }) }); });
+  (G.L.crowd || []).forEach(c => { if (vis(c.x, c.y, 80)) actors.push({ y: c.y, f: () => { drawChibi(c.x, c.y, G.t + c.ph, false, c.aim, c.look, { scale: 1.1, noPack: true }); if (c.sign) drawSign(c); } }); });
   if (!P.dead) actors.push({ y: P.y, f: drawPlayer });
   actors.sort((a, b) => a.y - b.y).forEach(a => a.f());
+  if (P.shieldT > 0 && !P.dead) {
+    ctx.strokeStyle = 'rgba(159,245,234,' + (0.55 + 0.3 * Math.sin(G.t * 9)) + ')'; ctx.lineWidth = 5; circle(P.x, P.y - 4, 80); ctx.stroke(); ctx.fillStyle = 'rgba(159,245,234,0.1)'; ctx.fill();
+    for (let k = 0; k < 6; k++) { const a = G.t * 1.5 + k / 6 * TAU; ctx.fillStyle = C.tealL; circle(P.x + Math.cos(a) * 80, P.y - 4 + Math.sin(a) * 80, 6); ctx.fill(); }
+  }
   if (G.P.marchT > 0 && !P.dead) { ctx.strokeStyle = 'rgba(159,245,234,' + (0.5 + 0.3 * Math.sin(G.t * 10)) + ')'; ctx.lineWidth = 4; circle(P.x, P.y - 4, 50); ctx.stroke(); ctx.fillStyle = 'rgba(159,245,234,0.12)'; ctx.fill(); }
   drawGuide();
   if (G.boss && !G.boss.dead) { drawLasers(G.boss); G.boss.orbs.forEach(drawOrb); }
   for (const b of G.pB) drawWaveShot(b);
+  for (const s of G.shells || []) if (s.t >= 0 && vis(s.x, s.y, 120)) drawShell(s);
+  if (G.residualOrb) drawResidualOrb();
   for (const b of G.eB) if (vis(b.x, b.y, 20)) {
     ctx.fillStyle = 'rgba(255,140,40,0.35)'; circle(b.x, b.y, b.r + 4); ctx.fill();
     ctx.fillStyle = C.orange; circle(b.x, b.y, b.r); ctx.fill();
@@ -2402,7 +2659,7 @@ function guideGoal() {
   if (w.active) {
     let best = null, bd = 1e9;
     G.gens.forEach(g => { if (g.alive && w.gens.includes(g.id)) { const d = dist(P.x, P.y, g.x, g.y); if (d < bd) { bd = d; best = g; } } });
-    return best && bd > 420 ? { x: best.x, y: best.y } : null;
+    return best && bd > (best.tower ? best.zone * 0.75 : 420) ? { x: best.x, y: best.y, near: !!best.tower } : null;
   }
   if (recordGateNeeded()) {
     const here = chipTargets().filter(c => c.y >= z.y0 && c.y < z.y1);
@@ -2634,11 +2891,13 @@ function drawWorldDecor() {
   for (const b of L.boards || []) drawBoard(b);
   for (const s of L.solids) {
     if (s.crate) drawCrate(s);
+    else if (s.dwall) drawDomeWall(s);
     else if (s.cliff) drawCliff(s);
     else if (s.fwall) drawFactoryWall(s);
     else if (s.space) drawSpaceEdge(s);
     else drawSpaceWindow(s);
   }
+  for (const l of L.launchers || []) drawLauncher(l);
 }
 function drawCrate(s) {
   const c = G.cam; if (s.x > c.x + W || s.x + s.w < c.x || s.y > c.y + H || s.y + s.h < c.y) return;
@@ -2843,6 +3102,138 @@ function edgeMarker(wx, wy, label, color) {
   txt(label, 0, 1, 13, color, 'center', { weight: 900 });
   ctx.rotate(ang); ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(40, 0); ctx.lineTo(28, -10); ctx.lineTo(28, 10); ctx.closePath(); ctx.fill();
   ctx.restore();
+}
+/* ----- 4스테이지 그리기 ----- */
+function drawDomeWall(s) {
+  const c = G.cam; if (s.x > c.x + W || s.x + s.w < c.x || s.y > c.y + H || s.y + s.h < c.y) return;
+  const y0 = Math.max(s.y, c.y - 10), y1 = Math.min(s.y + s.h, c.y + H + 10), left = s.dwall === 'a', inner = left ? s.x + s.w : s.x;
+  ctx.fillStyle = left ? '#1e3442' : '#2c2648'; ctx.fillRect(s.x, y0, s.w, y1 - y0);
+  for (let y = Math.floor(y0 / 70) * 70; y < y1; y += 70) {
+    const k = (Math.round(y / 70) * 7919 + (left ? 3 : 11)) % 97;
+    ctx.fillStyle = left ? '#2c4a5a' : '#3d3564'; rr(s.x + 14 + (k % 3) * 8, y + 6, s.w - 50, 50, 6); ctx.fill();
+    ctx.fillStyle = k % 4 ? 'rgba(255,214,120,0.85)' : 'rgba(159,245,234,0.8)';
+    ctx.fillRect(s.x + 26 + (k % 3) * 8, y + 18, 10, 10); ctx.fillRect(s.x + 50 + (k % 3) * 8, y + 18, 10, 10);
+  }
+  const gr = ctx.createLinearGradient(inner + (left ? -30 : 30), 0, inner, 0);
+  gr.addColorStop(0, 'rgba(190,240,255,0)'); gr.addColorStop(1, 'rgba(190,240,255,0.5)');
+  ctx.fillStyle = gr; ctx.fillRect(left ? inner - 30 : inner, y0, 30, y1 - y0);
+  ctx.fillStyle = '#e6f6ff'; ctx.fillRect(inner - 2, y0, 4, y1 - y0);
+  ctx.fillStyle = '#5b6087'; for (let y = Math.floor(y0 / 200) * 200; y < y1; y += 200) ctx.fillRect(left ? inner - 16 : inner - 2, y, 18, 14);
+  for (let y = Math.ceil(y0 / 900) * 900 + 450; y < y1; y += 900) {
+    const lb = left ? '알파 돔' : '베타 돔';
+    ctx.save(); ctx.translate(left ? inner - 40 : inner + 40, y); ctx.rotate(left ? -Math.PI / 2 : Math.PI / 2);
+    rr(-48, -15, 96, 30, 15); ctx.fillStyle = 'rgba(20,17,46,0.9)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.cream; ctx.stroke();
+    txt(lb, 0, 1, 16, C.cream, 'center', { weight: 900 }); ctx.restore();
+  }
+}
+function drawLauncher(l) {
+  const c = G.cam; if (!l.icon && (l.y < c.y - 90 || l.y > c.y + H + 90)) return;
+  const dir = l.side === 'a' ? 1 : -1, k = l.folded ? l.foldK : 0;
+  const aimA = dir > 0 ? -0.12 : Math.PI + 0.12, downA = Math.PI / 2;
+  const a = aimA + (downA - aimA) * k * (dir > 0 ? 1 : -1) * (dir > 0 ? 1 : -1);
+  ctx.save(); ctx.translate(l.x, l.y); ctx.lineJoin = 'round'; ctx.lineWidth = 2.6; ctx.strokeStyle = C.ink;
+  ctx.fillStyle = 'rgba(10,8,30,0.35)'; ellipse(0, 26, 40, 11); ctx.fill();
+  ctx.fillStyle = '#3a3566'; rr(-34, 4, 68, 22, 7); ctx.fill(); ctx.stroke();
+  ctx.save(); ctx.rotate(l.folded ? lerp(aimA, dir > 0 ? downA : downA, k) : aimA);
+  const hot = l.flash > 0 && !l.folded;
+  ctx.fillStyle = hot ? '#fff' : l.folded ? '#9a96b8' : '#e8e2d6';
+  rr(-8, -16, 52, 14, 5); ctx.fill(); ctx.stroke(); rr(-8, 2, 52, 14, 5); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = l.folded ? '#5b5880' : C.red; ctx.fillRect(38, -14, 5, 10); ctx.fillRect(38, 4, 5, 10);
+  ctx.restore();
+  ctx.fillStyle = l.folded ? '#8f8bb0' : C.cream; circle(0, 0, 18); ctx.fill(); ctx.stroke();
+  if (l.resid) {
+    const on = Math.floor(G.t * 3) % 2 === 0;
+    ctx.fillStyle = on ? '#ff3b3b' : '#6a1a1a'; circle(0, -1, 8); ctx.fill(); ctx.stroke();
+    if (on) { ctx.fillStyle = 'rgba(255,59,59,0.3)'; circle(0, -1, 20); ctx.fill(); }
+    setFont(13, 600); const tw = ctx.measureText('잔여 신호').width + 16;
+    rr(-tw / 2, -50, tw, 18, 9); ctx.fillStyle = 'rgba(120,20,30,0.95)'; ctx.fill(); txt('잔여 신호', 0, -41, 13, '#ffd0c8', 'center', { weight: 600 });
+  } else if (l.folded) { ctx.fillStyle = '#4d4777'; circle(0, -1, 7); ctx.fill(); }
+  else drawEye(0, -1, 9, l.icon ? 0 : Math.atan2(G.P.y - l.y, G.P.x - l.x), G.t);
+  if (!l.icon && !l.folded && dist(G.P.x, G.P.y, l.x, l.y) < 420) {
+    setFont(13, 600); const tw = ctx.measureText('미사일 발사대').width + 16;
+    rr(-tw / 2 + dir * 30, -48, tw, 18, 9); ctx.fillStyle = 'rgba(70,25,25,0.9)'; ctx.fill(); txt('미사일 발사대', dir * 30, -39, 13, '#ffd0c8', 'center', { weight: 600 });
+  }
+  ctx.restore();
+  if (l.flash > 0) l.flash -= 1 / 60;
+}
+function drawShell(s) {
+  const k = clamp(s.t / s.warn, 0, 1);
+  ctx.save();
+  if (!s.boom) {
+    ctx.fillStyle = 'rgba(255,80,60,' + (0.12 + 0.25 * k) + ')'; ellipse(s.x, s.y, s.r, s.r * 0.6); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,90,70,' + (0.6 + 0.4 * Math.sin(G.t * 20)) + ')'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(s.x, s.y, s.r, s.r * 0.6, 0, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,220,180,0.9)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(s.x, s.y, s.r * (1 - k), s.r * 0.6 * (1 - k), 0, 0, TAU); ctx.stroke();
+    // 위에서 떨어지는 미사일
+    const my = s.y - 420 * (1 - k * k);
+    ctx.translate(s.x, my);
+    ctx.fillStyle = 'rgba(255,170,60,0.6)'; ellipse(0, -26, 6, 14); ctx.fill();
+    ctx.fillStyle = '#e8e2d6'; ctx.strokeStyle = C.ink; ctx.lineWidth = 2; rr(-6, -18, 12, 26, 5); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = C.red; ctx.beginPath(); ctx.moveTo(-6, 6); ctx.lineTo(0, 16); ctx.lineTo(6, 6); ctx.closePath(); ctx.fill(); ctx.stroke();
+  } else {
+    const e = (s.t - s.warn) / 0.35;
+    ctx.fillStyle = 'rgba(255,200,120,' + (1 - e) * 0.7 + ')'; ellipse(s.x, s.y, s.r * (0.8 + e * 0.4), s.r * 0.6 * (0.8 + e * 0.4)); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawTower(g) {
+  const lit = !g.alive, zr = g.zone, ch = g.charge || 0;
+  ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  if (!lit) {
+    ctx.fillStyle = g.inside ? 'rgba(159,245,234,0.18)' : 'rgba(159,245,234,0.07)'; ellipse(g.x, g.y + 12, zr, zr * 0.62); ctx.fill();
+    ctx.setLineDash([12, 9]); ctx.lineDashOffset = -G.t * 20; ctx.strokeStyle = 'rgba(159,245,234,0.85)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(g.x, g.y + 12, zr, zr * 0.62, 0, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
+    if (ch > 0) { ctx.strokeStyle = C.tealL; ctx.lineWidth = 9; ctx.beginPath(); ctx.ellipse(g.x, g.y + 12, zr, zr * 0.62, 0, -Math.PI / 2, -Math.PI / 2 + TAU * ch); ctx.stroke(); }
+  } else {
+    ctx.strokeStyle = 'rgba(159,245,234,' + (0.35 + 0.2 * Math.sin(G.t * 3)) + ')'; ctx.lineWidth = 4;
+    for (let k = 0; k < 3; k++) { const rr2 = ((G.t * 60 + k * 50) % 150) + 30; ctx.beginPath(); ctx.ellipse(g.x, g.y - 96, rr2, rr2 * 0.5, 0, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke(); }
+  }
+  ctx.translate(g.x, g.y);
+  ctx.fillStyle = 'rgba(10,8,30,0.35)'; ellipse(0, 18, 34, 10); ctx.fill();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 3;
+  ctx.strokeStyle = '#3a3566'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(-24, 16); ctx.lineTo(0, -88); ctx.lineTo(24, 16); ctx.moveTo(-15, -22); ctx.lineTo(15, -22); ctx.moveTo(-9, -52); ctx.lineTo(9, -52); ctx.stroke();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2;
+  ctx.fillStyle = lit ? C.tealL : C.cream; ctx.beginPath(); ctx.ellipse(0, -96, 24, 12, -0.3, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = lit ? '#fff' : '#9a96b8'; circle(0, -112, 6); ctx.fill(); ctx.stroke();
+  if (lit) { ctx.fillStyle = 'rgba(159,245,234,0.35)'; circle(0, -112, 18 + Math.sin(G.t * 6) * 3); ctx.fill(); }
+  const label = lit ? '연대 송신탑 · 켜짐!' : g.inside ? '버티는 중 ' + Math.floor(ch * 100) + '%' : '연대 송신탑';
+  setFont(15, 600); const tw = ctx.measureText(label).width + 20;
+  rr(-tw / 2, -150, tw, 24, 12); ctx.fillStyle = lit ? 'rgba(20,70,60,0.95)' : g.inside ? C.tealL : 'rgba(27,24,56,0.9)'; ctx.fill();
+  txt(label, 0, -137, 15, lit ? '#c8ffe4' : g.inside ? C.ink : C.tealL, 'center', { weight: 600 });
+  ctx.restore();
+}
+function drawSign(c) {
+  const s = c.sign; setFont(13, 600); const w = Math.max(56, ctx.measureText(s).width + 16), bob = Math.sin(G.t * 3 + c.ph) * 2;
+  ctx.save(); ctx.translate(c.x, c.y - 62 + bob);
+  ctx.strokeStyle = '#8a6a40'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 26); ctx.stroke();
+  rr(-w / 2, -26, w, 26, 5); ctx.fillStyle = C.cream; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt(s, 0, -12, 13, C.ink, 'center', { weight: 600 });
+  ctx.restore();
+}
+function drawResidualOrb() {
+  const o = G.residualOrb, k = Math.min(1, o.t / 2.5);
+  if (k >= 1) return;
+  const px = kk => lerp(o.x, o.x + 560, kk * kk), py = kk => lerp(o.y + 80, 20, kk);
+  ctx.save();
+  for (let i = 1; i < 8; i++) { const kk = Math.max(0, k - i * 0.025); ctx.fillStyle = 'rgba(255,59,59,' + (0.1 * (8 - i) / 7) + ')'; circle(px(kk), py(kk), 16); ctx.fill(); }
+  const x = px(k), y = py(k), on = Math.floor(G.t * 8) % 2;
+  ctx.fillStyle = 'rgba(255,59,59,0.3)'; circle(x, y, 30 + Math.sin(G.t * 12) * 4); ctx.fill();
+  ctx.fillStyle = on ? '#ff3b3b' : '#ffb0b0'; circle(x, y, 15); ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt('잔여 신호', x, y + 36, 20, '#ffd0c8', 'center', { weight: 900, stroke: C.ink, sw: 5 });
+  ctx.restore();
+}
+function drawBossPods(b) {
+  const pos = [[-170, -50], [170, -50], [-150, 70], [150, 70]];
+  for (let i = 0; i < G.L.bossPods; i++) {
+    const p = pos[i % pos.length], on = i < b.pods;
+    ctx.save(); ctx.translate(p[0], p[1]); ctx.lineJoin = 'round'; ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink;
+    ctx.rotate(on ? (p[0] < 0 ? -0.5 : 0.5) : (p[0] < 0 ? 1.1 : -1.1));
+    ctx.fillStyle = on ? '#e8e2d6' : '#6b6890'; rr(-12, -28, 24, 40, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = on ? C.red : '#3a3566'; ctx.fillRect(-8, -24, 6, 8); ctx.fillRect(2, -24, 6, 8);
+    ctx.restore();
+  }
+  setFont(15, 600);
+  const s = '미사일 포대 ' + b.pods + '/' + G.L.bossPods, tw = ctx.measureText(s).width + 20;
+  rr(-tw / 2, 120, tw, 24, 12); ctx.fillStyle = 'rgba(70,25,25,0.9)'; ctx.fill(); txt(s, 0, 133, 15, '#ffd0c8', 'center', { weight: 600 });
 }
 function checker(x, y, w, h, s) {
   for (let i = 0; i * s < w; i++) for (let j = 0; j * s < h; j++) { ctx.fillStyle = (i + j) % 2 ? '#1b1838' : '#fff4dc'; ctx.fillRect(x + i * s, y + j * s, Math.min(s, w - i * s), Math.min(s, h - j * s)); }
@@ -3054,6 +3445,7 @@ function drawGenLinks(g) {
   }
 }
 function drawGen(g) {
+  if (g.tower) { drawTower(g); return; }
   ctx.save(); ctx.translate(g.x + (g.hitT > 0 ? rand(-2, 2) : 0), g.y); ctx.scale(g.big ? 1.6 : 1.25, g.big ? 1.6 : 1.25);
   ctx.lineJoin = 'round'; ctx.lineWidth = 2.6; ctx.strokeStyle = C.ink;
   if (!g.alive) {
@@ -3133,6 +3525,7 @@ function drawBoss(b) {
     ctx.restore();
   }
   if (b.breakT > 0) { ctx.strokeStyle = 'rgba(159,245,234,' + b.breakT + ')'; ctx.lineWidth = 8; circle(0, 0, 152 + (0.7 - b.breakT) * 200); ctx.stroke(); }
+  if (G.L.bossPods && b.dying <= 0) drawBossPods(b);
   if (G.L.bossClock && b.dying <= 0) {
     const lit = b.round + (b.shield ? 0 : 1), R = 180;
     [['일 8', C.orange], ['쉼 8', C.teal], ['하고 싶은 일 8', C.mustard]].forEach((s, i) => {
@@ -3292,6 +3685,18 @@ function drawHUD() {
       rr(72, 173, 268, 14, 7); ctx.fillStyle = 'rgba(10,8,30,0.8)'; ctx.fill();
       if (f > 0.005) { rr(72, 173, 268 * f, 14, 7); ctx.fillStyle = on ? (full ? C.bad : '#b98cff') : C.good; ctx.fill(); }
     }
+  } else if (G.arms && G.mode !== 'brief' && G.mode !== 'rules') {
+    const on = G.restricted, A = G.arms, mx = 40;
+    panel(14, 110, 340, 92, { fill: on ? 'rgba(80,26,30,0.92)' : 'rgba(20,70,60,0.92)', stroke: on ? C.bad : C.good, r: 16, lw: 2 });
+    txt(on ? '무기 경쟁 중 · 한쪽이 늘리면 다른 쪽도' : '무기 경쟁이 멈췄어요', 184, 128, 16, on ? '#ffd0c8' : '#c8ffe4', 'center', { weight: 600 });
+    [['a', '알파 돔 무기'], ['b', '베타 돔 무기']].forEach(([k, nm], i) => {
+      const y = 150 + i * 28, v = Math.ceil(A[k]), fl = Math.max(0, G.armsFlash[k]);
+      txt(nm, 30, y, 15, C.cream, 'left', { weight: 600 });
+      rr(132, y - 7, 160, 14, 7); ctx.fillStyle = 'rgba(10,8,30,0.8)'; ctx.fill();
+      if (v > 0) { rr(132, y - 7, 160 * Math.min(1, v / mx), 14, 7); ctx.fillStyle = fl > 0 ? '#fff0c8' : on ? C.orange : C.good; ctx.fill(); }
+      txt(String(v), 340, y, 19 + fl * 6, fl > 0 ? C.amberL : C.cream, 'right', { weight: 900 });
+    });
+    if (!on && (G.L.launchers || []).some(l => l.resid) && Math.floor(G.t * 3) % 2 === 0) { rr(244, 116, 100, 22, 11); ctx.fillStyle = 'rgba(120,20,30,0.95)'; ctx.fill(); txt('잔여 신호 1', 294, 127, 13, '#ffd0c8', 'center', { weight: 600 }); }
   } else if (G.L.restrict && G.mode !== 'brief' && G.mode !== 'rules') {
     if (G.restricted) { panel(14, 110, 340, 34, { fill: 'rgba(90,25,30,0.88)', stroke: C.bad, r: 17, lw: 2 }); txt(G.L.restrict.hud || '지구 출신 · 이동 느림 · 대시 금지', 184, 127, 16, '#ffd0c8', 'center', { weight: 600 }); }
     else if (G.t - G.freeT < 6) { panel(14, 110, 340, 34, { fill: 'rgba(20,70,60,0.9)', stroke: C.good, r: 17, lw: 2 }); txt(G.L.restrict.hudFree || '제한 해제! 어디든 갈 수 있어요', 184, 127, 16, '#c8ffe4', 'center', { weight: 600 }); }
@@ -3325,7 +3730,9 @@ function drawHUD() {
     const named = w.gens.map(id => G.gens.find(g => g.id === id)).find(g => g.alive && g.name);
     const chipsObj = '지금 할 일 ▶ 기록 칩 모두 모으기 (' + (fieldRecords().length - recordsLeft()) + '/' + fieldRecords().length + ')';
     const z0 = G.zones[G.zoneIdx], chipsHere = recordGateNeeded() && chipTargets().some(c => (c.y >= z0.y0 && c.y < z0.y1) || (zoneIndexAt(c.y) < G.zoneIdx && !G.restricted));
-    obj = named && left === 1 ? '지금 할 일 ▶ ' + named.name + ' 부수기' : left ? '지금 할 일 ▶ 발생기 ' + left + '개 부수기' : ((chipsHere || (G.zoneIdx === G.zones.length - 1 && recordGateNeeded())) ? chipsObj : '지금 할 일 ▶ 위로 나아가기 ▲');
+    const towersW = w.gens.length && w.gens.every(id => G.gens.find(g => g.id === id).tower);
+    if (towersW && left) obj = '지금 할 일 ▶ 연대 송신탑 켜기 · 원 안에서 버티기 (' + (w.gens.length - left) + '/' + w.gens.length + ')';
+    else obj = named && left === 1 ? '지금 할 일 ▶ ' + named.name + ' 부수기' : left ? '지금 할 일 ▶ 발생기 ' + left + '개 부수기' : ((chipsHere || (G.zoneIdx === G.zones.length - 1 && recordGateNeeded())) ? chipsObj : '지금 할 일 ▶ 위로 나아가기 ▲');
   } else if (!G.boss) obj = recordGateNeeded() ? '지금 할 일 ▶ 기록 칩 모두 모으기 (' + (fieldRecords().length - recordsLeft()) + '/' + fieldRecords().length + ')' : '지금 할 일 ▶ 보스 구역 문으로 들어가기 ▲';
   if (obj && G.mode !== 'brief' && G.mode !== 'rules' && !coachVisible()) { setFont(26, 900); const tw = ctx.measureText(obj).width + 64; panel(W / 2 - tw / 2, 10, tw, 56, { fill: 'rgba(27,24,56,0.95)', stroke: C.mustard, r: 28, lw: 4 }); txt(obj, W / 2, 39, 26, C.amberL, 'center', { weight: 900 }); }
   if (!G.boss && G.mode !== 'brief' && G.mode !== 'rules') drawMissionList();
@@ -3365,7 +3772,7 @@ function drawControls() {
   if (hint) {
     const hx = touchUI() ? W - 270 : W - 64, hy = touchUI() ? H - 86 : H - 52;
     ctx.strokeStyle = 'rgba(159,245,234,' + (0.5 + 0.5 * Math.sin(G.t * 12)) + ')'; ctx.lineWidth = 6; circle(hx, hy, (touchUI() ? 66 : 46) + Math.sin(G.t * 12) * 4); ctx.stroke();
-    txt(touchUI() ? "'파동' 버튼으로 탄 지우기!" : 'E: 공명 파동으로 탄 지우기!', hx - (touchUI() ? 0 : 20), hy - (touchUI() ? 84 : 66), 22, C.tealL, touchUI() ? 'center' : 'right', { weight: 900, stroke: C.ink, sw: 5 });
+    txt(touchUI() ? "'파동' 버튼으로 탄 지우기! (E)" : 'E: 공명 파동으로 탄 지우기!', hx - (touchUI() ? 0 : 20), hy - (touchUI() ? 84 : 66), 22, C.tealL, touchUI() ? 'center' : 'right', { weight: 900, stroke: C.ink, sw: 5 });
   }
   const dashR = P.dashCd > 0 ? P.dashCd / G.st.dashCd : 0, skR = G.skillCd > 0 ? G.skillCd / SKILLS[sk].cd : 0;
   if (skR <= 0 && G.skWas > 0) G.skReadyAt = G.t;
@@ -3391,7 +3798,7 @@ function drawControls() {
     }
     touchBtn(W - 120, H - 120, 70, '대시', dashR, () => { touchAct.dash = true; }, G.restricted && G.L.restrict.noDash);
     touchBtn(W - 270, H - 86, 54, D.skills[sk].name.split(' ').pop(), skR, () => { touchAct.skill = true; }, false, G.skillCd);
-    if (G.skills.length > 1) touchBtn(W - 262, H - 198, 30, '⇄', 0, () => { touchAct.swap = true; });
+    if (G.skills.length > 1) touchBtn(W - 262, H - 206, 38, '바꾸기', 0, () => { touchAct.swap = true; });
   } else {
     cdIcon(W - 150, H - 52, '대시', 'Shift', dashR);
     cdIcon(W - 64, H - 52, D.skills[sk].name, 'E', skR, G.skillCd);
@@ -3497,6 +3904,7 @@ function drawMissionList() {
     { t: G.L.capLabel || '정착민 구하기', v: G.stats.rescued + '/' + G.caps.length, done: G.stats.rescued === G.caps.length, opt: !G.L.capsRequired },
     { t: '기록 칩 모두 모으기', v: got + '/' + recs.length, done: got === recs.length }
   ];
+  if (!G.caps.length) items.splice(1, 1);
   items.push({ t: '보스 「' + G.def.boss.name + '」 반박', v: '0/' + rounds, done: false });
   const cur = items.findIndex(i => !i.done && !i.opt);
   const sig = items.map(i => i.v).join('|');
@@ -3505,7 +3913,7 @@ function drawMissionList() {
   if (!open) {
     const st = button(W - 154, 90, 140, 34, '', () => { G.missionPinned = true; }, { focusable: false, draw: false });
     panel(W - 154, 90, 140, 34, { fill: st.hover ? 'rgba(60,52,120,0.9)' : 'rgba(27,24,56,0.75)', r: 17, lw: 2 });
-    txt(touchUI() ? '미션 보기 ▾' : '미션 (Tab) ▾', W - 84, 107, 15, C.mustard, 'center', { weight: 600 });
+    txt('미션 보기 ▾', W - 84, 107, 15, C.mustard, 'center', { weight: 600 });
     return;
   }
   if (G.missionPinned) button(W - 304, 90, 290, 30 + items.length * 30 + 10, '', () => { G.missionPinned = false; G.missionAt = -99; }, { focusable: false, draw: false });
@@ -3554,8 +3962,8 @@ function drawBrief() {
     txt((i + 1) + '. ' + f, x + fw / 2, y, flow.length > 4 ? 17 : 19, C.cream, 'center', { weight: 600 });
     if (!last) txt('▶', x + fw + fg / 2, y, 18, C.mustard, 'center');
   });
-  const ctrl = touchUI() ? '이동: 왼쪽 화면 끌기  ·  공격: 자동  ·  대시(빨리 피하기)·공명 파동(탄 지우기): 오른쪽 아래 버튼' : '이동: WASD·방향키  ·  공격: 자동  ·  대시(빨리 피하기): Shift·Space  ·  공명 파동(탄 지우기): E';
-  txt(ctrl, W / 2, 562, 18, '#cfc8f2', 'center', { weight: 600 });
+  const ctrl = '이동: 왼쪽 화면 끌기 · 공격: 자동 · 대시·공명 파동: 오른쪽 아래 버튼   (키보드: WASD 이동 · Shift 대시 · E 파동)';
+  txt(ctrl, W / 2, 562, 17, '#cfc8f2', 'center', { weight: 600 });
   button(W / 2 - 140, 592, 280, 66, '출발!', () => openRules(), { size: 30 });
 }
 function drawLegendIcon(k, x, y) {
@@ -3567,6 +3975,9 @@ function drawLegendIcon(k, x, y) {
   else if (k === 'chip') drawChipIcon(x, y, 1.5, t);
   else if (k === 'bar') { ctx.save(); ctx.beginPath(); ctx.rect(x - 50, y - 9, 100, 18); ctx.clip(); ctx.fillStyle = '#e0573e'; ctx.fillRect(x - 50, y - 9, 100, 18); ctx.fillStyle = '#fff4dc'; for (let xx = x - 70 + (t * 30) % 30; xx < x + 60; xx += 30) { ctx.beginPath(); ctx.moveTo(xx, y + 9); ctx.lineTo(xx + 10, y + 9); ctx.lineTo(xx + 20, y - 9); ctx.lineTo(xx + 10, y - 9); ctx.closePath(); ctx.fill(); } ctx.restore(); }
   else if (k === 'boost') { ctx.strokeStyle = C.tealL; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; for (let i = 0; i < 3; i++) { const yy = y + 22 - i * 20 - ((t * 1.8) % 1) * 20; ctx.beginPath(); ctx.moveTo(x - 24, yy + 8); ctx.lineTo(x, yy - 8); ctx.lineTo(x + 24, yy + 8); ctx.stroke(); } }
+  else if (k === 'launcher') { ctx.save(); ctx.translate(x - 8, y + 6); ctx.scale(0.9, 0.9); drawLauncher({ x: 0, y: 0, side: 'a', folded: false, foldK: 0, t, icon: true }); ctx.restore(); }
+  else if (k === 'tower') { ctx.save(); ctx.translate(x, y + 40); ctx.scale(0.42, 0.42); drawTower({ x: 0, y: 0, alive: true, zone: 80, charge: (t * 0.3) % 1, inside: false }); ctx.restore(); }
+  else if (k === 'warn') { ctx.save(); drawShell({ x, y: y + 12, t: (t * 0.8) % 1.2, warn: 1.25, r: 34 }); ctx.restore(); }
   else if (k === 'belt') { ctx.fillStyle = '#22213c'; ctx.fillRect(x - 46, y - 20, 92, 40); ctx.strokeStyle = 'rgba(255,196,90,0.8)'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; for (let i = -1; i < 3; i++) { const xx = x - 34 + i * 30 + ((t * 40) % 30); ctx.beginPath(); ctx.moveTo(xx - 7, y - 11); ctx.lineTo(xx + 5, y); ctx.lineTo(xx - 7, y + 11); ctx.stroke(); } ctx.fillStyle = '#6b7096'; ctx.fillRect(x - 46, y - 24, 92, 5); ctx.fillRect(x - 46, y + 19, 92, 5); }
   else if (k === 'worker') { ctx.save(); ctx.translate(x, y + 8); ctx.scale(0.7, 0.7); drawWorker({ x: 0, y: 0, look: LOOKS[0], t, freed: false, icon: true }); ctx.restore(); }
   else if (k === 'machine') { ctx.save(); ctx.translate(x, y + 34); ctx.scale(0.58, 0.58); drawGen({ x: 0, y: 0, alive: true, hitT: 0, hp: 1, maxHp: 1, id: '', icon: true, big: true }); ctx.restore(); ctx.strokeStyle = 'rgba(255,200,90,0.9)'; ctx.lineWidth = 3; ctx.setLineDash([7, 5]); circle(x, y, 38); ctx.stroke(); ctx.setLineDash([]); }
@@ -3590,9 +4001,9 @@ function drawBossIntro() {
   txt('BOSS · 오더의 하위 모듈', 90, 250, 26, C.amberL, 'left', { weight: 900, stroke: C.ink, sw: 6 });
   txt(b.def.name, 90, 310, 64, C.cream, 'left', { weight: 900, stroke: C.ink, sw: 10 });
   para('「' + b.def.intro + '」', 92, 390, 560, 28, C.cream, 40, { stroke: C.ink, sw: 6 });
-  ['① 보스가 주장을 외치면 방어막이 생겨요', '② 주장이 틀렸다는 증거 구슬에 몸으로 닿아요', '③ 방어막이 깨지면 공격! (틀린 구슬은 반격)', '④ 탄이 많으면 ' + (touchUI() ? "'파동' 버튼" : 'E') + '(공명 파동)로 지워요'].forEach((l, i) =>
+  ['① 보스가 주장을 외치면 방어막이 생겨요', '② 주장이 틀렸다는 증거 구슬에 몸으로 닿아요', '③ 방어막이 깨지면 공격! (틀린 구슬은 반격)', "④ 탄이 많으면 '파동' 버튼(키보드 E)으로 지워요"].forEach((l, i) =>
     txt(l, 92, 444 + i * 34, 22, C.amberL, 'left', { stroke: C.ink, sw: 5 }));
-  if (t > 0.7) txt('클릭 · Enter: 시작', 92, 590, 17, C.cream, 'left', { stroke: C.ink, sw: 4 });
+  if (t > 0.7) txt('화면을 눌러 시작 (키보드: Enter)', 92, 590, 17, C.cream, 'left', { stroke: C.ink, sw: 4 });
   ctx.restore();
 }
 function recordLayout(r, ds) {
@@ -3620,7 +4031,8 @@ function drawRecordCard() {
   txt('실제 역사 기록이에요', x + 258, y + 44, 21, '#bdb6e6', 'left', { weight: 600 });
   const px = x + 30, py = y + 82;
   const img = PHOTO[r.photo];
-  if (img) { rr(px, py, pw, ph, 12); ctx.fillStyle = '#141228'; ctx.fill(); drawContain(img, px + 4, py + 4, pw - 8, ph - 8); rr(px, py, pw, ph, 12); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke(); }
+  if (img) { rr(px, py, pw, ph, 12); ctx.fillStyle = '#141228'; ctx.fill(); drawContain(img, px + 4, py + 4, pw - 8, ph - 8); rr(px, py, pw, ph, 12); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke();
+    if (r.illust) { setFont(15, 600); const it = '설명 그림 · 실제 사진이 아니에요', iw = ctx.measureText(it).width + 22; rr(px + 10, py + ph - 38, iw, 28, 14); ctx.fillStyle = 'rgba(20,17,46,0.88)'; ctx.fill(); txt(it, px + 10 + iw / 2, py + ph - 24, 15, C.amberL, 'center', { weight: 600 }); } }
   else drawPhotoBox(r, px, py, pw, ph, { r: 12 });
   const tx = x + 550, tw = Lo.tw;
   let yy = py + 18;
@@ -3640,7 +4052,7 @@ function drawRecordCard() {
     txt('기록을 읽어 보세요. 잠시 뒤에 모을 수 있어요', W / 2, y + h - 16, 18, '#bdb6e6', 'center', { weight: 600 });
   } else {
     button(bx, by, 320, 68, '모으기', () => closeRecord(), { size: 32 });
-    txt('Enter · Space · 클릭', W / 2, y + h - 16, 18, '#bdb6e6', 'center', { weight: 600 });
+    txt('버튼을 눌러 모으기 (키보드: Enter)', W / 2, y + h - 16, 18, '#bdb6e6', 'center', { weight: 600 });
   }
 }
 function drawLevelUp() {
@@ -3660,7 +4072,7 @@ function drawLevelUp() {
     for (let k = 0; k < u.max; k++) { ctx.fillStyle = k < cur ? C.mustard : k === cur ? C.good : 'rgba(255,244,220,0.2)'; circle(x + w / 2 - (u.max - 1) * 11 + k * 22, y + lift + 280, 7); ctx.fill(); }
     txt(String(i + 1), x + 26, y + lift + 28, 20, C.amberL, 'center');
   });
-  txt('클릭 · 1/2/3 · 방향키+Enter', W / 2, 600, 16, '#bdb6e6', 'center', { weight: 600 });
+  txt('눌러서 고르기 (키보드: 1·2·3)', W / 2, 600, 16, '#bdb6e6', 'center', { weight: 600 });
 }
 function drawUpIcon(id, x, y) {
   ctx.save(); ctx.translate(x, y);
@@ -3677,15 +4089,17 @@ function drawUpIcon(id, x, y) {
 }
 function drawPause() {
   modalStart(); dim(0.7);
-  panel(W / 2 - 230, 90, 460, 560);
-  txt('잠깐 멈춤', W / 2, 140, 38, C.cream, 'center', { weight: 900 });
-  let y = 186;
+  panel(W / 2 - 230, 40, 460, 650);
+  txt('잠깐 멈춤', W / 2, 90, 38, C.cream, 'center', { weight: 900 });
+  let y = 132;
   button(W / 2 - 170, y, 340, 58, '계속하기', () => { G.mode = 'play'; }); y += 70;
   button(W / 2 - 170, y, 340, 52, '지구 기록 보관소', () => openArchive(), { size: 21, fill: C.tealL }); y += 64;
   button(W / 2 - 170, y, 340, 52, Sound.on ? '소리: 켬' : '소리: 끔', () => Sound.toggle(), { size: 21, fill: '#d9d2f0' }); y += 64;
   button(W / 2 - 170, y, 340, 52, forceTouch ? '터치 버튼: 켬 (태블릿)' : '터치 버튼: 끔 (태블릿)', () => setForceTouch(!forceTouch), { size: 20, fill: forceTouch ? C.tealL : '#d9d2f0' }); y += 64;
+  fsButton(W / 2 - 170, y, 340, 52, 20); y += 64;
   button(W / 2 - 170, y, 340, 52, '스테이지 고르기', () => go(() => SelectScene()), { size: 21 }); y += 64;
   txt('나가면 이번 스테이지 진행은 저장되지 않아요 (기록 칩은 저장돼요)', W / 2, y + 14, 14, '#bdb6e6', 'center', { weight: 600 });
+  drawFsNote();
 }
 function drawChange() {
   const t = G.clearT, d = G.def, ch = d.change;
