@@ -1,6 +1,6 @@
 // 자동 플레이 봇: 실제 키 입력으로 한 스테이지를 처음(상황 컷)부터 보스 격파까지 플레이한다(순간 이동·무적 없음).
 // 쓰는 법(저장소 맨 위에서, Playwright 필요): node tools/playtest_bot.js [easy|normal] [정답률 0~1] [스테이지 번호]
-// 예: node tools/playtest_bot.js normal 0.8 4   → 15초마다 상태를 찍고, 끝나면 END clear/gameover 와 오류(ERR)를 보여 준다.
+// 예: node tools/playtest_bot.js normal 0.8 5   → 15초마다 상태를 찍고, 끝나면 END clear/gameover 와 오류(ERR)를 보여 준다.
 // 봇은 학생보다 훨씬 빠르게 움직이니 걸린 시간은 '최소 시간'으로만 본다. 새 스테이지의 장치를 넣으면 이 봇도 같이 고친다.
 const path = require('path'), os = require('os');
 const { chromium } = require('playwright');
@@ -20,7 +20,8 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     for (const k of [...held]) if (!want.has(k)) { await page.keyboard.up(k); held.delete(k); }
     for (const k of want) if (!held.has(k)) { await page.keyboard.down(k); held.add(k); }
   }
-  let lastLog = 0, wrongBudget = 0, jitter = 0, shots = [];
+  let lastLog = 0, wrongBudget = 0, jitter = 0, shots = [], lastZone = null, zoneT = 0;
+  const stuck = { x: 0, y: 0, t: 0, until: 0, dx: 0 };
   const t0 = Date.now();
   while (Date.now() - t0 < 900000) {
     const s = await page.evaluate(() => {
@@ -33,7 +34,7 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
         G.caps.filter(c => !c.freed && c.y >= z.y0 && c.y < z.y1).forEach(c => objs.push({ x: c.x, y: c.y, k: 'c' }));
         G.chips.filter(c => !c.got && c.y >= z.y0 && c.y < z.y1 && !(G.restricted && G.L.restrict.lane && c.x < 1000)).forEach(c => objs.push({ x: c.x, y: c.y, k: 'h' }));
       }
-      const b = G.boss && !G.boss.dead ? { x: G.boss.x, y: G.boss.y, sh: G.boss.shield, r: G.boss.round, hp: G.boss.hp / G.boss.maxHp, orbs: G.boss.orbs.filter(o => o.born > 0.5).map(o => ({ x: o.x, y: o.y, c: !!o.opt.correct })), lasers: G.boss.lasers.map(l => ({ k: l.kind, x: l.x, y: l.y, gap: l.gap, warn: l.warn, x0: l.x0, x1: l.x1, dir: l.dir, hd: l.kind === 'hand' ? (() => { const ox = G.boss.x, oy = G.boss.y + 40, ex = ox + Math.cos(l.a) * l.len, ey = oy + Math.sin(l.a) * l.len, dx = ex - ox, dy = ey - oy, t = Math.max(0, Math.min(1, ((P.x - ox) * dx + (P.y - oy) * dy) / (dx * dx + dy * dy))); return Math.hypot(P.x - ox - dx * t, P.y - oy - dy * t); })() : null })) } : null;
+      const b = G.boss && !G.boss.dead ? { x: G.boss.x, y: G.boss.y, sh: G.boss.shield, r: G.boss.round, hp: G.boss.hp / G.boss.maxHp, orbs: G.boss.orbs.filter(o => o.born > 0.5).map(o => ({ x: o.x, y: o.y, c: !!o.opt.correct })), lasers: G.boss.lasers.map(l => ({ k: l.kind, x: l.x, y: l.y, r: l.r, gap: l.gap, warn: l.warn, x0: l.x0, x1: l.x1, dir: l.dir, hd: l.kind === 'hand' ? (() => { const ox = G.boss.x, oy = G.boss.y + 40, ex = ox + Math.cos(l.a) * l.len, ey = oy + Math.sin(l.a) * l.len, dx = ex - ox, dy = ey - oy, t = Math.max(0, Math.min(1, ((P.x - ox) * dx + (P.y - oy) * dy) / (dx * dx + dy * dy))); return Math.hypot(P.x - ox - dx * t, P.y - oy - dy * t); })() : null })) } : null;
       const rg = G.walls.find(w => w.id === 'recgate');
       const allChips = [];
       if (rg && rg.active) { G.chips.forEach(c => { if (!c.got && !__colony.save.records[c.id] && !(G.restricted && G.L.restrict.lane && c.x < 1000)) allChips.push({ x: c.x, y: c.y, k: 'h' }); }); G.enemies.forEach(e => { if (e.chip && !e.dead) allChips.push({ x: e.x, y: e.y, k: 'e' }); }); }
@@ -43,6 +44,8 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     });
     if (!s) break;
     if (s.scene !== 'stage') break;
+    // 구간이 바뀔 때마다 그 구간에 걸린 시간(움직인 시간)을 찍는다
+    if (s.zone !== lastZone && s.mode === 'play') { if (lastZone !== null) console.log('ZONE', ['A', 'B', 'C'][lastZone] || 'boss', (s.time - zoneT).toFixed(0) + 's'); lastZone = s.zone; zoneT = s.time; }
     if (s.mode === 'levelup') { await setKeys(new Set()); await sleep(500); await page.keyboard.press(String(1 + Math.floor(Math.random() * 3)).replace(/^/, 'Digit')); continue; }
     if (s.mode === 'claim') { await setKeys(new Set()); await sleep(2900); await page.keyboard.press('Enter'); continue; }
     if (s.mode === 'rebut') { await setKeys(new Set()); await sleep(1200); await page.keyboard.press('Enter'); continue; }
@@ -52,7 +55,7 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     if (s.mode === 'intro') { await page.keyboard.press('Enter'); await sleep(250); continue; }
     if (s.mode === 'brief') { await page.keyboard.press('Enter'); await sleep(200); continue; }
     if (s.mode === 'bossIntro') { await setKeys(new Set()); await page.keyboard.press('Enter'); await sleep(200); continue; }
-    if (s.mode === 'clear' || s.mode === 'gameover') { await setKeys(new Set()); console.log('END', s.mode, JSON.stringify({ t: s.time.toFixed(0), lv: s.lv, lives: s.lives, stats: s.stats })); break; }
+    if (s.mode === 'clear' || s.mode === 'gameover') { await setKeys(new Set()); console.log('ZONE', ['A', 'B', 'C'][lastZone] || 'boss', (s.time - zoneT).toFixed(0) + 's'); console.log('END', s.mode, JSON.stringify({ t: s.time.toFixed(0), lv: s.lv, lives: s.lives, stats: s.stats })); break; }
     let tx = s.P.x, ty = s.P.y - 300, dashNow = false;
     if (s.b) {
       const correct = s.b.orbs.find(o => o.c), wrong = s.b.orbs.find(o => !o.c);
@@ -65,6 +68,8 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
         if (l.k === 'h' && Math.abs(s.P.y - l.y) < 140) { tx = l.gap; }
         if (l.k === 'floor') tx = 800 - l.dir * 320;
         if (l.k === 'hand' && !l.warn && l.hd < 95) dashNow = true;
+        if (l.k === 'drain') { const d = Math.hypot(s.P.x - l.x, s.P.y - l.y) || 1; if (d < l.r * (l.warn ? 1.2 : 2.1)) { tx = s.P.x + (s.P.x - l.x) / d * 300; ty = s.P.y + (s.P.y - l.y) / d * 300; } }
+        if (l.k === 'gust' && !l.warn) tx -= l.dir * 160;
         if (l.k === 'area') { tx = (l.x0 + l.x1) / 2; if (s.P.x < l.x0 + 20 || s.P.x > l.x1 - 20) ty = s.P.y; }
       }
     } else if (s.work && s.guide) {
@@ -87,6 +92,12 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     if (s.shells && s.shells.length) { const e = s.shells[0]; tx = s.P.x + (s.P.x - e.x) * 4 + 1; ty = s.P.y + (s.P.y - e.y) * 4 + 1; }
     // dodge: step away from nearest bullet sometimes
     if (s.near.length && Math.random() < 0.5) { const e = s.near[0]; tx = s.P.x + (s.P.x - e.x) * 2; ty = s.P.y + (s.P.y - e.y) * 2; }
+    // 물체에 막혀 제자리면 잠깐 옆으로 비켜 간다(길 찾기가 없어서)
+    if (!s.b && Math.hypot(tx - s.P.x, ty - s.P.y) > 60) {
+      if (Math.hypot(s.P.x - stuck.x, s.P.y - stuck.y) > 12) { stuck.x = s.P.x; stuck.y = s.P.y; stuck.t = s.time; }
+      else if (s.time - stuck.t > 1.5 && !stuck.until) { stuck.until = s.time + 1.2; stuck.dx = (Math.random() < 0.5 ? -1 : 1) * 260; }
+    }
+    if (stuck.until) { if (s.time < stuck.until) { tx = s.P.x + stuck.dx; ty = s.P.y + 120; } else { stuck.until = 0; stuck.t = s.time; } }
     const dx = tx - s.P.x, dy = ty - s.P.y, want = new Set();
     if (dx < -20) want.add('KeyA'); if (dx > 20) want.add('KeyD');
     if (dy < -20) want.add('KeyW'); if (dy > 20) want.add('KeyS');
