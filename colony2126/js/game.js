@@ -3368,6 +3368,14 @@ function drawControls() {
     txt(touchUI() ? "'파동' 버튼으로 탄 지우기!" : 'E: 공명 파동으로 탄 지우기!', hx - (touchUI() ? 0 : 20), hy - (touchUI() ? 84 : 66), 22, C.tealL, touchUI() ? 'center' : 'right', { weight: 900, stroke: C.ink, sw: 5 });
   }
   const dashR = P.dashCd > 0 ? P.dashCd / G.st.dashCd : 0, skR = G.skillCd > 0 ? G.skillCd / SKILLS[sk].cd : 0;
+  if (skR <= 0 && G.skWas > 0) G.skReadyAt = G.t;
+  G.skWas = skR;
+  const rdy = G.t - (G.skReadyAt == null ? -9 : G.skReadyAt);
+  if (rdy < 1.2) {
+    const sx = touchUI() ? W - 270 : W - 64, sy = touchUI() ? H - 86 : H - 52, sr = touchUI() ? 54 : 36;
+    ctx.strokeStyle = 'rgba(159,245,234,' + Math.max(0, 1 - rdy / 0.7) + ')'; ctx.lineWidth = 5; circle(sx, sy, sr + rdy * 46); ctx.stroke();
+    txt('준비!', sx, sy - sr - 18, 20, C.tealL, 'center', { weight: 900, stroke: C.ink, sw: 5 });
+  }
   if (touchUI()) {
     if (joy) {
       ctx.fillStyle = 'rgba(255,244,220,0.12)'; circle(joy.ox, joy.oy, 64); ctx.fill(); ctx.strokeStyle = 'rgba(255,244,220,0.5)'; ctx.lineWidth = 3; ctx.stroke();
@@ -3382,28 +3390,43 @@ function drawControls() {
       txt('끌어서 이동', 150, H - 62, 16, C.cream, 'center', { weight: 600, stroke: C.ink, sw: 4 });
     }
     touchBtn(W - 120, H - 120, 70, '대시', dashR, () => { touchAct.dash = true; }, G.restricted && G.L.restrict.noDash);
-    touchBtn(W - 270, H - 86, 54, D.skills[sk].name.split(' ').pop(), skR, () => { touchAct.skill = true; });
+    touchBtn(W - 270, H - 86, 54, D.skills[sk].name.split(' ').pop(), skR, () => { touchAct.skill = true; }, false, G.skillCd);
     if (G.skills.length > 1) touchBtn(W - 262, H - 198, 30, '⇄', 0, () => { touchAct.swap = true; });
   } else {
     cdIcon(W - 150, H - 52, '대시', 'Shift', dashR);
-    cdIcon(W - 64, H - 52, D.skills[sk].name, 'E', skR);
+    cdIcon(W - 64, H - 52, D.skills[sk].name, 'E', skR, G.skillCd);
     if (G.skills.length > 1) txt('Q: 기술 바꾸기', W - 108, H - 108, 13, 'rgba(255,244,220,0.7)', 'center', { weight: 700 });
   }
 }
-function touchBtn(x, y, r, label, cdRatio, fn, locked) {
+// 둘레 게이지: 다시 쓸 수 있을 때까지 시계 방향으로 차오른다. 1초 넘게 남았으면 남은 초를 숫자로 보여 준다
+function cdRing(x, y, r, cdRatio, lw) {
+  const ready = !(cdRatio > 0);
+  ctx.save(); ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(255,244,220,0.18)'; circle(x, y, r); ctx.stroke();
+  ctx.strokeStyle = ready ? C.tealL : C.mustard; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + TAU * (ready ? 1 : Math.max(0.001, 1 - cdRatio))); ctx.stroke();
+  ctx.restore();
+}
+function touchBtn(x, y, r, label, cdRatio, fn, locked, left) {
   button(x - r, y - r, r * 2, r * 2, '', fn, { focusable: false, draw: false });
   ctx.fillStyle = locked ? 'rgba(90,25,30,0.7)' : 'rgba(27,24,56,0.7)'; circle(x, y, r); ctx.fill();
-  if (cdRatio > 0) { ctx.fillStyle = 'rgba(10,8,30,0.6)'; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + TAU * cdRatio); ctx.closePath(); ctx.fill(); }
-  ctx.strokeStyle = cdRatio > 0 ? 'rgba(255,244,220,0.35)' : C.tealL; ctx.lineWidth = 4; circle(x, y, r); ctx.stroke();
-  txt(label, x, y, r > 40 ? 24 : 20, locked ? '#ffb3a8' : C.cream, 'center', { weight: 900 });
+  cdRing(x, y, r, cdRatio, r > 40 ? 7 : 6);
+  if (cdRatio > 0 && left >= 1) {
+    txt(String(Math.ceil(left)), x, y - 6, r > 40 ? 34 : 28, C.cream, 'center', { weight: 900 });
+    txt(label, x, y + (r > 40 ? 24 : 20), 13, '#bdb6e6', 'center', { weight: 600 });
+  } else txt(label, x, y, r > 40 ? 24 : 20, locked ? '#ffb3a8' : cdRatio > 0 ? '#bdb6e6' : C.cream, 'center', { weight: 900 });
   if (locked) txt('금지', x, y + 26, 13, '#ffb3a8', 'center', { weight: 600 });
 }
-function cdIcon(x, y, name, key, cdRatio) {
-  ctx.fillStyle = 'rgba(27,24,56,0.85)'; circle(x, y, 34); ctx.fill();
-  if (cdRatio > 0) { ctx.fillStyle = 'rgba(10,8,30,0.75)'; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, 34, -Math.PI / 2, -Math.PI / 2 + TAU * cdRatio); ctx.closePath(); ctx.fill(); }
-  ctx.strokeStyle = cdRatio > 0 ? 'rgba(255,244,220,0.3)' : C.tealL; ctx.lineWidth = 3; circle(x, y, 34); ctx.stroke();
-  txt(key, x, y - 6, 15, cdRatio > 0 ? '#8e87bd' : C.mustard, 'center');
-  txt(name.length > 5 ? name.slice(0, 5) + '…' : name, x, y + 12, 12, C.cream, 'center', { weight: 700 });
+function cdIcon(x, y, name, key, cdRatio, left) {
+  const r = 36, short = name.length > 5 ? name.slice(0, 5) + '…' : name;
+  ctx.fillStyle = 'rgba(27,24,56,0.9)'; circle(x, y, r); ctx.fill();
+  cdRing(x, y, r, cdRatio, 6);
+  if (cdRatio > 0 && left >= 1) {
+    txt(String(Math.ceil(left)), x, y - 6, 26, C.cream, 'center', { weight: 900 });
+    txt(short, x, y + 15, 11, '#bdb6e6', 'center', { weight: 700 });
+  } else {
+    txt(key, x, y - 7, 15, cdRatio > 0 ? '#8e87bd' : C.mustard, 'center');
+    txt(short, x, y + 12, 12, cdRatio > 0 ? '#bdb6e6' : C.cream, 'center', { weight: 700 });
+  }
 }
 function drawBanner(b) {
   const a = Math.min(1, b.t * 5, (b.dur - b.t) * 3);
@@ -3672,33 +3695,35 @@ function drawChange() {
   panel(40, 24, W - 80, H - 48, { fill: 'rgba(22,19,50,0.97)', stroke: C.mustard, r: 26, lw: 4 });
   txt(ch.title, W / 2, 78, 44, C.mustard, 'center', { weight: 900, stroke: C.ink, sw: 7 });
   txt('지구에서 사람들의 노력이 세상을 바꾼 것처럼, 화성도 바뀌었어요', W / 2, 126, 26, C.cream, 'center', { weight: 600 });
-  // 왼쪽: 지구 (실제 기록)
-  const lx = 80, ly = 156, lw = 540;
-  rr(lx, ly, 200, 40, 20); ctx.fillStyle = C.tealL; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
-  txt('지구 · 실제 역사', lx + 100, ly + 20, 20, C.ink, 'center', { weight: 900 });
-  (ch.earth || []).forEach((e, i) => {
+  // 두 칸을 카드 가운데에 맞춘다: 왼쪽 지구(실제 기록) | 화살표 | 오른쪽 화성(우리 이야기). 이름표는 각 칸 가운데 위, 두 칸의 위아래 끝은 같다
+  const lx = 80, lw = 480, gapW = 100, rx = lx + lw + gapW, rw = W - 80 - rx, ly = 164;
+  const rows = ch.earth || [], rowH = 94, rowG = 12, top = ly + 58, bodyH = rows.length * rowH + (rows.length - 1) * rowG;
+  rr(lx + lw / 2 - 100, ly, 200, 40, 20); ctx.fillStyle = C.tealL; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt('지구 · 실제 역사', lx + lw / 2, ly + 20, 20, C.ink, 'center', { weight: 900 });
+  rows.forEach((e, i) => {
     const show = Math.min(1, Math.max(0, (t - 0.5 - i * 0.5) * 3));
     if (show <= 0) return;
     ctx.globalAlpha = a * show;
-    const y = ly + 58 + i * 106;
-    rr(lx, y, lw, 94, 16); ctx.fillStyle = 'rgba(44,200,182,0.12)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(159,245,234,0.6)'; ctx.stroke();
-    txt(e[0], lx + 20, y + 47, 40, C.tealL, 'left', { weight: 900 });
-    const el = wrap(e[1], lw - 150, 28, 600);
-    el.forEach((l, k) => txt(l, lx + 134, y + 47 + (k - (el.length - 1) / 2) * 34, 28, C.cream, 'left', { weight: 600 }));
+    const y = top + i * (rowH + rowG);
+    rr(lx, y, lw, rowH, 16); ctx.fillStyle = 'rgba(44,200,182,0.12)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(159,245,234,0.6)'; ctx.stroke();
+    txt(e[0], lx + 18, y + rowH / 2, 34, C.tealL, 'left', { weight: 900 });
+    const el = wrap(e[1], lw - 108 - 16, 28, 600);
+    el.forEach((l, k) => txt(l, lx + 108, y + rowH / 2 + (k - (el.length - 1) / 2) * 34, 28, C.cream, 'left', { weight: 600 }));
   });
   ctx.globalAlpha = a;
-  // 오른쪽: 화성 (우리 이야기)
-  const rx = 660, rw = W - 80 - rx + 40 - 40;
-  rr(rx, ly, 220, 40, 20); ctx.fillStyle = C.orange; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
-  txt('화성 · 우리 정착촌', rx + 110, ly + 20, 20, C.ink, 'center', { weight: 900 });
-  const img = IMG[ch.img], iy = ly + 58, ih = 214;
+  rr(rx + rw / 2 - 110, ly, 220, 40, 20); ctx.fillStyle = C.orange; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+  txt('화성 · 우리 정착촌', rx + rw / 2, ly + 20, 20, C.ink, 'center', { weight: 900 });
+  const ml = wrap(ch.mars, rw, 26, 600), mlh = 34, ih = bodyH - 18 - ml.length * mlh, img = IMG[ch.img], iy = top;
   const show2 = Math.min(1, Math.max(0, (t - 1.6) * 2));
   ctx.globalAlpha = a * show2;
   if (img) { ctx.save(); rr(rx, iy, rw, ih, 16); ctx.clip(); drawCover(img, rx, iy, rw, ih); ctx.restore(); rr(rx, iy, rw, ih, 16); ctx.lineWidth = 3; ctx.strokeStyle = C.cream; ctx.stroke(); }
   else { rr(rx, iy, rw, ih, 16); ctx.fillStyle = '#2e2b52'; ctx.fill(); txt(ch.alt || '모두의 길', rx + rw / 2, iy + ih / 2, 40, C.tealL, 'center', { weight: 900 }); }
-  para(ch.mars, rx, iy + ih + 30, rw, 26, C.cream, 34, { weight: 600 });
+  ml.forEach((l, k) => txt(l, rx, iy + ih + 18 + mlh / 2 + k * mlh, 26, C.cream, 'left', { weight: 600 }));
   ctx.globalAlpha = a;
-  txt('▶', 640, ly + 180, 40, C.mustard, 'center', { weight: 900 });
+  // 가운데 화살표
+  const ax = lx + lw + gapW / 2, ay = top + bodyH / 2;
+  ctx.fillStyle = C.mustard; ctx.strokeStyle = C.ink; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(ax - 22, ay - 14); ctx.lineTo(ax + 2, ay - 14); ctx.lineTo(ax + 2, ay - 30); ctx.lineTo(ax + 30, ay); ctx.lineTo(ax + 2, ay + 30); ctx.lineTo(ax + 2, ay + 14); ctx.lineTo(ax - 22, ay + 14); ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.restore();
   if (G.bossRec && t > 1.2) txt((G.bossRecFresh ? '새 기록 획득: ' : '기록: ') + G.bossRec.year + ' ' + G.bossRec.title + ' (기록 보관소에서 볼 수 있어요)', W / 2, H - 150, 21, C.tealL, 'center', { weight: 600 });
   if (t > 2) button(W / 2 - 140, H - 112, 280, 62, '다음 ▶', () => { G.clearStep = 1; G.clearT = 0; ui.focus = 0; }, { size: 26 });
