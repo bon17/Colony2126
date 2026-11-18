@@ -41,13 +41,11 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
       const shells = (G.shells || []).filter(s => !s.boom && s.t >= 0 && Math.hypot(s.x - P.x, s.y - P.y) < s.r + 30).map(s => ({ x: s.x, y: s.y }));
       const near = G.eB.filter(e => Math.hypot(e.x - P.x, e.y - P.y) < 120).map(e => ({ x: e.x, y: e.y }));
       const barOn = !!(G.L.barGaps && !G.race && G.restricted && !(G.off && G.off.bar));
-      // 종장: 지금 열 단말기의 방법, 기록 발판(다음에 밟을 칸)
+      // 종장: 지금 열 단말기의 방법, 퀴즈(타이밍 카드 위치, 빈칸·조각 버튼 자리)
       let core = null;
       if (G.L.sockets) {
         const zz = G.zones[G.zoneIdx], ww = zz && G.walls.find(w => w.id === zz.exit), cs = ww && G.gens.find(g => g.socket && g.alive && ww.gens.includes(g.id));
-        const q = G.quiz;
-        core = { method: cs ? cs.method : null, ready: !!(cs && cs.ready), sx: cs ? cs.x : 0, sy: cs ? cs.y : 0, run: G.core.run.phase,
-                 quiz: q ? { id: q.g.id, miss: q.miss, pads: q.pads.map(p => ({ x: p.x, y: p.y, next: p.item === q.ch.items[q.step], done: p.state === 'done' })) } : null };
+        core = { method: cs ? cs.method : null, ready: !!(cs && cs.ready), sx: cs ? cs.x : 0, sy: cs ? cs.y : 0, run: G.core.run.phase, quiz: __colony.quiz() };
       }
       return { core, ztags: G.zones.map(z => z.tag || ''), barOn, shells, work: !!(G.work && !G.work.done), race: G.race && G.race.on, stage: G.def.id, guide: __colony.guide(), allChips, gateOn: !!(rg && rg.active), restricted: G.restricted, mode: G.mode, time: G.time, P: { x: P.x, y: P.y, hp: P.hp, dead: P.dead }, max: G.st.maxHp, lives: G.lives, lv: G.level, zone: G.zoneIdx, objs, b, near, stats: G.stats, scene: __colony.scene, walls: G.walls.filter(w => w.active).map(w => w.id) };
     });
@@ -59,8 +57,21 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     if (s.zone !== lastZone && s.mode === 'play') { if (lastZone !== null) console.log('ZONE', s.ztags[lastZone] || ['A', 'B', 'C'][lastZone] || 'boss', (s.time - zoneT).toFixed(0) + 's'); lastZone = s.zone; zoneT = s.time; }
     if (s.mode === 'levelup') { await setKeys(new Set()); await sleep(500); await page.keyboard.press(String(1 + Math.floor(Math.random() * 3)).replace(/^/, 'Digit')); continue; }
     if (s.mode === 'claim') { await setKeys(new Set()); await sleep(2900); await page.keyboard.press('Enter'); continue; }
-    // 종장: 단말기 잠금이 풀리면 근거 카드가 뜬다
+    // 종장: 단말기가 열리면 퀴즈. 타이밍은 설명 카드 뒤 게임 중에, 빈칸·사진 조각은 멈춘 카드에서
     if (s.mode === 'sockClaim') { await setKeys(new Set()); await sleep(1700); await page.keyboard.press('Enter'); continue; }
+    if (s.mode === 'quizCard') {
+      await setKeys(new Set()); const q = s.core && s.core.quiz;
+      if (!q || q.solved || !q.ui) { await sleep(300); continue; }
+      if (sockPick.id !== q.id) { sockPick.id = q.id; sockPick.wrong = Math.random() > ACC; await sleep(1500); continue; }
+      const click = async r => { await page.mouse.click(r.x + r.w / 2, r.y + r.h / 2); await sleep(350); };
+      if (q.type === 'blank') { const w = q.ui.find(r => !r.ok); if (sockPick.wrong && w) { sockPick.wrong = false; await click(w); } else await click(q.ui.find(r => r.ok)); }
+      else {
+        const i = q.tiles.findIndex((t, k) => !(t[0] === Math.floor(k / 3) && t[1] === k % 3));
+        const j = q.tiles.findIndex(t => t[0] === Math.floor(i / 3) && t[1] === i % 3);
+        if (i >= 0 && j >= 0) { await sleep(500); await click(q.ui[i]); await click(q.ui[j]); }
+      }
+      continue;
+    }
     if (s.mode === 'chain') { await setKeys(new Set()); await sleep(1200); await page.keyboard.press('Enter'); continue; }
     if (s.mode === 'rebut') { await setKeys(new Set()); await sleep(1200); await page.keyboard.press('Enter'); continue; }
     if (s.mode === 'down') { await setKeys(new Set()); await sleep(10300); await page.keyboard.press('Enter'); continue; }
@@ -70,7 +81,7 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     if (s.mode === 'brief') { await page.keyboard.press('Enter'); await sleep(200); continue; }
     if (s.mode === 'bossIntro') { await setKeys(new Set()); await page.keyboard.press('Enter'); await sleep(200); continue; }
     if (s.mode === 'clear' || s.mode === 'gameover') { await setKeys(new Set()); console.log('ZONE', ['A', 'B', 'C'][lastZone] || 'boss', (s.time - zoneT).toFixed(0) + 's'); console.log('END', s.mode, JSON.stringify({ t: s.time.toFixed(0), lv: s.lv, lives: s.lives, stats: s.stats })); break; }
-    let tx = s.P.x, ty = s.P.y - 300, dashNow = false;
+    let tx = s.P.x, ty = s.P.y - 300, dashNow = false, quizKey = false;
     if (s.b) {
       const correct = s.b.orbs.find(o => o.c), wrong = s.b.orbs.find(o => !o.c);
       if (s.b.sh && s.b.orbs.length) {
@@ -86,13 +97,14 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
         if (l.k === 'gust' && !l.warn) tx -= l.dir * 160;
         if (l.k === 'area') { tx = (l.x0 + l.x1) / 2; if (s.P.x < l.x0 + 20 || s.P.x > l.x1 - 20) ty = s.P.y; }
       }
-    } else if (s.core && s.core.quiz) {
-      // 기록 발판: 단말기마다 한 번 정답률에 따라 틀린 칸을 먼저 밟을지 정한다
+    } else if (s.core && s.core.quiz && s.core.quiz.type === 'timing') {
+      // 타이밍: 제자리에서 카드를 보고 「파동」. 단말기마다 한 번 정답률에 따라 틀린 카드를 먼저 누를지 정한다
       const q = s.core.quiz;
       if (sockPick.id !== q.id) { sockPick.id = q.id; sockPick.wrong = Math.random() > ACC; sockPick.n = q.miss; }
       if (q.miss > sockPick.n) sockPick.wrong = false;
-      const wrongP = q.pads.find(p => !p.done && !p.next), o = (sockPick.wrong && wrongP) ? wrongP : q.pads.find(p => p.next) || q.pads[0];
-      tx = o.x; ty = o.y;
+      const mid = q.cards.find(c => Math.abs(c.x - q.cx) < 28 && !c.got);
+      if (mid && (mid.ok || sockPick.wrong)) quizKey = true;
+      tx = s.P.x; ty = s.P.y;
     } else if (s.core && s.core.method && s.guide) {
       // 종장 단말기 여는 방법: 안내 화살표가 가리키는 곳(일하는 사람, 단말기, 밸브, 출발선)
       tx = s.guide.x; ty = s.guide.y;
@@ -133,7 +145,8 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     await setKeys(want);
     if (dashNow) await page.keyboard.press('Space');
     if (s.near.length > 2 && Math.random() < 0.2) await page.keyboard.press('Space');
-    if (Math.random() < 0.05) await page.keyboard.press('KeyE');
+    if (quizKey) await page.keyboard.press('KeyE');
+    else if (Math.random() < 0.05 && !(s.core && s.core.quiz)) await page.keyboard.press('KeyE');
     if (s.b && s.b.sh && s.b.orbs.length && wrongBudget === 0 && Math.random() > ACC) wrongBudget = -1;
     if (s.b && !s.b.sh) wrongBudget = 0;
     if (s.time - lastLog > 15) { lastLog = s.time; console.log(JSON.stringify({ t: s.time.toFixed(0), zone: s.zone, hp: Math.round(s.P.hp) + '/' + s.max, lives: s.lives, lv: s.lv, walls: s.walls.join(','), boss: s.b ? { r: s.b.r, hp: s.b.hp.toFixed(2), sh: s.b.sh } : null, downs: s.stats.downs, P: [s.P.x | 0, s.P.y | 0], objs: s.objs.slice(0, 3).map(o => o.k + (o.x | 0) + ',' + (o.y | 0)) })); }

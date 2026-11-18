@@ -1745,7 +1745,7 @@ function layoutStage6() {
     legend: [
       { k: 'hero', n: '나 (지구 출신 학생)', t: '공명기로 가장 가까운 적을 자동으로 쏴요' },
       { k: 'socket', n: '원칙 단말기', t: '그 운동의 방법으로 열어요. 쏴서는 안 열려요' },
-      { k: 'pad', n: '기록 발판', t: '문제 → 행동 → 제도 순서로 밟으면 카드가 꽂혀요' },
+      { k: 'pad', n: '정리표 퀴즈', t: '단말기가 열리면 문제 → 행동 → 제도를 맞혀 카드를 꽂아요' },
       { k: 'worker', n: '일하는 사람', t: '노동 단말기: 벨트 위의 세 사람을 풀어 줘요' },
       { k: 'valve', n: '밸브', t: '환경 단말기: 모래폭풍 속 밸브 네 개를 잠가요' },
       { k: 'charter', n: '헌장 문', t: '제도 카드 5장을 모두 꽂으면 열려요' }
@@ -1753,7 +1753,7 @@ function layoutStage6() {
     flow: ['노동 → 민권', '환경 → 반전 평화', '여성(완주)', '오더 본체 반박'],
     rules: [
       { k: 'core5', n: '단말기마다 여는 방법이 달라요', d: '단결 · 비폭력 행진 · 협약 · 연대 · 완주. 방법은 위쪽 「지금 할 일」이 알려 줘요' },
-      { k: 'pad', n: '기록 발판 퀴즈', d: '단말기가 열리면 발판 3개를 「문제 → 행동 → 제도」 순서로 밟아요 (틀리면 반격)' },
+      { k: 'pad', n: '정리표 퀴즈', d: '단말기마다 퀴즈가 달라요: 지나가는 카드를 「파동」 버튼으로 고르기 · 빈칸 채우기 · 사진 조각 맞추기' },
       { k: 'charter', n: '수업 정리표 → 헌장 문', d: '카드를 꽂을 때마다 정리표가 한 줄씩 채워지고, 다섯 줄이 차면 헌장 문이 열려요' }
     ]
   };
@@ -2615,6 +2615,7 @@ function updateStage(dt) {
   else if (G.mode === 'rebut') { G.rebutT += dt; if (G.rebutT > 1) menuNav(); }
   else if (G.mode === 'sockClaim') { G.claimT += dt; if (G.claimT > 1.5) menuNav(); }
   else if (G.mode === 'chain') { G.chainT += dt; if (G.chainT > 1) menuNav(); }
+  else if (G.mode === 'quizCard') { G.quizT += dt; if (G.quiz && G.quiz.solvedT != null) { if (G.quizT - G.quiz.solvedT > 0.9) finishQuiz(); } else if (G.quizT > 0.4) menuNav(); }
   else if (G.mode === 'down') { G.downT += dt; updateFx(dt); if (G.downT >= reviveSec()) menuNav(); }
   else if (G.mode === 'clear') { G.clearT += dt; updateFx(dt); if (G.clearT > (G.clearStep === 0 ? (G.def.change && G.def.change.mars2 ? 4.2 : 2) : 1.2)) menuNav(); }
   else if (G.mode === 'pause' || G.mode === 'gameover') menuNav();
@@ -2732,7 +2733,8 @@ function updatePlay(dt) {
       P.dashT = 0.18; P.dashCd = st.dashCd; P.dashDir = P.moving ? { x: P.last.x, y: P.last.y } : { x: Math.cos(P.aim), y: Math.sin(P.aim) };
       burst(P.x, P.y, C.tealL, 8, 160, 4);
     }
-    if (hit('KeyE') || touchAct.skill) useSkill();
+    // 종장 타이밍 퀴즈 중에는 「파동」 버튼이 카드를 고르는 버튼이 된다
+    if (hit('KeyE') || touchAct.skill) { if (G.quiz && G.quiz.type === 'timing') quizPress(); else useSkill(); }
     if (hit('Tab')) { G.missionPinned = !G.missionPinned; if (!G.missionPinned) G.missionAt = -99; }
     let spd = st.speed * (mech('lane') && L.restrict.slow ? L.restrict.slow : 1) * (P.boostT > 0 ? 1.8 : 1);
     if (L.fatigue) spd *= 1 - (L.fatigue.slow || 0) * (G.fatigue || 0);
@@ -3316,7 +3318,8 @@ function curSock() {
 function coreObjective() {
   if (!G.L.sockets || G.boss) return null;
   const q = G.quiz;
-  if (q) return { text: '기록 발판을 ' + (q.ch.order === 'year' ? '일어난 해 순서로' : '문제 → 행동 → 제도 순서로') + ' 밟기 (' + q.step + '/' + q.ch.items.length + ')', target: q.g };
+  if (q && q.type === 'timing') return { text: '가운데 칸에 「' + roleOf(q.ch, q.ch.items[q.step]) + '」 기록이 오면 「파동」 버튼 (' + q.step + '/' + q.ch.items.length + ')', target: null };
+  if (q) return { text: '정리표 퀴즈 풀기', target: null };
   const g = curSock(); if (!g) return null;
   if (g.ready) return { text: '제도 카드를 꽂아요', target: g };
   if (g.method === 'unity') { const cs = G.caps.filter(c => c.mod === 'labor'), f = cs.filter(c => c.freed).length; return { text: '벨트를 거슬러 일하는 사람 풀어 주기 (단결 ' + f + '/' + cs.length + ')', target: nearestOf(cs.filter(c => !c.freed)) }; }
@@ -3336,56 +3339,96 @@ function coreNoFire() {
   if (!G.L.sockets || G.zoneIdx !== 1) return false;
   const k = coreSock('k1'); return !!(k && k.alive && !k.ready);
 }
+// 퀴즈 시작: 노동·반전 평화 = 타이밍, 민권·여성 = 빈칸 채우기, 환경 = 사진 조각 맞추기(data.js chains의 quiz)
+const movOfRecord = id => { const r = recordById(id), st = r && stageById(r.stage); return st ? st.movement : ''; };
+const roleOf = (ch, it) => ch.order === 'year' ? it.year : it.role;
+function puzzleRows(tiles) { return [0, 1, 2].map(r => [0, 1, 2].every(c => { const t = tiles[r * 3 + c]; return t.r === r && t.c === c; })); }
 function startQuiz(g) {
   if (g.ready) return;
   g.ready = true;
   const ch = chainOf(g);
   if (!ch) { killGen(g); return; }
-  const cell = sockCell(g), P = G.P, placed = [];
-  const bad = (x, y) => G.L.solids.some(sd => inRectPad(x, y, sd, 50)) || (G.L.presses || []).some(pr => inRectPad(x, y, pr, 40)) || (G.L.launchers || []).some(l => dist(x, y, l.x, l.y) < 90);
-  const pads = shuffle(ch.items).map(item => {
-    let x, y, tries = 0;
-    do {
-      const a = rand(0, TAU), d = rand(160, 260);
-      x = clamp(g.x + Math.cos(a) * d, cell.x0, cell.x1); y = clamp(g.y - 20 + Math.sin(a) * d * 0.75, cell.y0, cell.y1); tries++;
-    } while (tries < 80 && (placed.some(p => dist(p.x, p.y, x, y) < 170) || dist(x, y, g.x, g.y) < 120 || dist(x, y, P.x, P.y) < 110 || bad(x, y)));
-    placed.push({ x, y });
-    return { item, x, y, r: 48, state: 'idle', t: 0, inside: false };
-  });
-  G.quiz = { g, ch, pads, step: 0, miss: 0 };
   burst(g.x, g.y - 50, C.mustard, 26, 260); Sound.play('good');
-  G.mode = 'sockClaim'; G.claimT = 0; ui.focus = 0;
+  const q = { g, ch, type: ch.quiz || 'blank', step: 0, miss: 0, t: 0, solvedT: null };
+  G.quiz = q; G.quizT = 0; G.claimT = 0; ui.focus = 0;
+  if (q.type === 'timing') {
+    q.cards = shuffle(ch.items.concat(ch.decoys || [])).map(it => ({ it, got: false }));
+    q.off = 0; q.v = 80; q.lock = 0; q.flash = null;
+    G.mode = 'sockClaim';
+  } else if (q.type === 'blank') {
+    q.opts = shuffle([ch.items[ch.blank]].concat(ch.choices || [])); q.bad = {};
+    G.mode = 'quizCard';
+  } else {
+    const tiles = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) tiles.push({ r, c });
+    let arr, tries = 0; do { arr = shuffle(tiles); tries++; } while (tries < 50 && puzzleRows(arr).some(x => x));
+    q.tiles = arr; q.sel = -1; q.done = puzzleRows(arr); q.hint = shuffle([0, 1, 2]);
+    G.mode = 'quizCard';
+  }
+}
+function finishQuiz() {
+  const q = G.quiz; if (!q) return;
+  G.stats.right++; gainXp(20);
+  G.chainCard = { g: q.g, ch: q.ch }; G.chainT = 0; G.mode = 'chain'; ui.focus = 0;
+  G.quiz = null;
+}
+function quizMiss(title, text) { const q = G.quiz; q.miss++; G.stats.wrong++; banner(title, text, C.bad, 4.5); Sound.play('bad'); }
+// 타이밍: 카드가 오른쪽에서 왼쪽으로 지나간다. 화면 아래 가운데 칸(TICK)에 온 카드를 「파동」 버튼으로 고른다
+const TICK = { x: W / 2 - 300, y: 512, w: 600, h: 136, gap: 150, win: 62 };
+function tickerCards(q) {
+  const n = q.cards.length, total = n * TICK.gap, left = W / 2 - total / 2;
+  return q.cards.map((c, k) => ({ c, x: left + ((((k * TICK.gap - q.off) % total) + total) % total) }));
 }
 function updateQuiz(dt) {
-  const q = G.quiz, P = G.P; if (!q) return;
-  for (const p of q.pads) {
-    p.t += dt;
-    const inside = !P.dead && dist(P.x, P.y, p.x, p.y) < p.r;
-    if (inside && !p.inside && p.state !== 'done') {
-      const want = q.ch.items[q.step];
-      if (p.item === want) {
-        p.state = 'done'; q.step++;
-        burst(p.x, p.y, C.tealL, 20, 220); Sound.play('pick');
-        addText(p.x, p.y - 70, (q.ch.order === 'year' ? p.item.year : p.item.role) + ' ✓', C.tealL, 22);
-        if (q.step >= q.ch.items.length) {
-          G.stats.right++; gainXp(20);
-          G.chainCard = { g: q.g, ch: q.ch }; G.chainT = 0; G.mode = 'chain'; ui.focus = 0;
-          G.quiz = null; return;
-        }
-      } else {
-        // 순서가 틀리면 그 발판이 빨개지며 반격한다. 맞게 밟은 칸은 그대로 두고 지금 칸부터 다시
-        q.miss++; G.stats.wrong++;
-        p.state = 'bad'; p.badT = 0.9;
-        P.inv = 0; hurtPlayer(8, p.x, p.y, true); P.inv = 1.0;
-        for (let k = 0; k < 6; k++) enemyShot(p.x, p.y, k / 6 * TAU, 100, 7);
-        const role = q.ch.order === 'year' ? p.item.year + '년' : p.item.role, next = q.ch.order === 'year' ? '더 먼저 일어난 기록' : want.role;
-        banner('순서가 틀렸어요!', '「' + p.item.label + '」은(는) ' + role + ' 기록이에요. 지금은 ' + next + '을(를) 밟을 차례예요', C.bad, 4.5);
-        Sound.play('bad');
-      }
-    }
-    p.inside = inside;
-    if (p.state === 'bad') { p.badT -= dt; if (p.badT <= 0) p.state = 'idle'; }
+  const q = G.quiz; if (!q) return;
+  q.t += dt;
+  if (q.type !== 'timing') return;
+  q.off += q.v * dt; if (q.lock > 0) q.lock -= dt;
+  if (q.flash) { q.flash.t -= dt; if (q.flash.t <= 0) q.flash = null; }
+}
+function quizPress() {
+  const q = G.quiz; if (!q || q.type !== 'timing' || q.lock > 0 || G.P.dead) return;
+  q.lock = 0.45;
+  const hitc = tickerCards(q).find(p => Math.abs(p.x - W / 2) < TICK.win), c = hitc && hitc.c, want = q.ch.items[q.step];
+  if (c && c.got) { addText(G.P.x, G.P.y - 70, '이미 고른 기록이에요', C.cream, 18); return; }
+  if (c && c.it === want) {
+    c.got = true; q.step++; q.v += 22; q.flash = { ok: true, t: 0.5 };
+    addText(G.P.x, G.P.y - 70, roleOf(q.ch, want) + ' ✓', C.tealL, 22); Sound.play('pick');
+    if (q.step >= q.ch.items.length) finishQuiz();
+    return;
   }
+  q.flash = { ok: false, t: 0.5 };
+  const P = G.P; P.inv = 0; hurtPlayer(8, P.x, P.y - 30, true); P.inv = 1.0;
+  if (!c) quizMiss('조금 일러요!', '카드가 가운데 칸에 들어왔을 때 눌러요');
+  else if (q.ch.items.includes(c.it)) quizMiss('차례가 달라요!', '「' + c.it.label + '」은(는) ' + roleOf(q.ch, c.it) + ' 기록이에요. 지금은 ' + roleOf(q.ch, want) + ' 차례예요');
+  else quizMiss('다른 운동의 기록이에요!', '「' + c.it.label + '」은(는) ' + movOfRecord(c.it.record) + ' 기록이에요. 지금은 ' + q.ch.mov + ' 운동의 ' + roleOf(q.ch, want) + ' 차례예요');
+}
+// 빈칸 채우기: 고른 보기가 맞으면 채워지고, 틀리면 흔들리며 이유 한 줄
+function quizPickBlank(o) {
+  const q = G.quiz; if (!q || q.solvedT != null) return;
+  const ans = q.ch.items[q.ch.blank];
+  if (o === ans) { q.solvedT = G.quizT; Sound.play('good'); return; }
+  q.bad[o.label] = G.quizT; q.miss++; G.stats.wrong++; Sound.play('bad');
+  const same = recordById(o.record) && recordById(ans.record) && recordById(o.record).stage === recordById(ans.record).stage;
+  q.why = '「' + o.label + '」은(는) ' + (same && o.year ? o.year + ' 기록이에요. ' : movOfRecord(o.record) + ' 기록이에요. ') + blankHint(q.ch);
+}
+// 빈칸 자리에 맞는 기록을 찾는 실마리
+function blankHint(ch) {
+  const b = ch.blank, its = ch.items;
+  if (ch.order !== 'year') return ch.mov + ' 운동의 ' + its[b].role + ' 기록을 찾아요';
+  if (b === 0) return its[1].year + '년보다 먼저 일어난 ' + ch.mov + ' 운동 기록을 찾아요';
+  if (b === its.length - 1) return its[b - 1].year + '년보다 뒤에 일어난 ' + ch.mov + ' 운동 기록을 찾아요';
+  return its[b - 1].year + '년과 ' + its[b + 1].year + '년 사이에 일어난 ' + ch.mov + ' 운동 기록을 찾아요';
+}
+// 사진 조각: 하나를 누르고 다른 하나를 누르면 자리를 바꾼다. 줄이 맞으면 그 줄은 고정
+function quizPickTile(i) {
+  const q = G.quiz; if (!q || q.solvedT != null || q.done[Math.floor(i / 3)]) return;
+  if (q.sel < 0) { q.sel = i; return; }
+  if (q.sel === i) { q.sel = -1; return; }
+  const a = q.sel; q.sel = -1;
+  const t = q.tiles[a]; q.tiles[a] = q.tiles[i]; q.tiles[i] = t;
+  const now = puzzleRows(q.tiles);
+  now.forEach((d, r) => { if (d && !q.done[r]) { q.done[r] = true; Sound.play('pick'); } });
+  if (q.done.every(x => x)) { q.solvedT = G.quizT; Sound.play('good'); }
 }
 function endChain() {
   if (G.mode !== 'chain' || G.chainT < 1) return;
@@ -3477,60 +3520,129 @@ function drawCoreFloor() {
     checker(sb.x, sb.y, sb.w, 18, 9);
     txt(R.phase === 'idle' ? '출발선 · 여기에 서면 달리기 시작' : '출발선', sb.x + sb.w / 2, sb.y + 62, 22, C.amberL, 'center', { weight: 900, stroke: C.ink, sw: 5 });
   }
-  drawQuizPads();
 }
-function drawQuizPads() {
-  const q = G.quiz; if (!q) return;
-  const g = q.g;
-  ctx.save(); ctx.setLineDash([10, 10]); ctx.lineDashOffset = -G.t * 30; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(247,197,72,0.5)';
-  for (const p of q.pads) { ctx.beginPath(); ctx.moveTo(g.x, g.y - 40); ctx.lineTo(p.x, p.y); ctx.stroke(); }
-  ctx.restore();
-  for (const p of q.pads) {
-    const done = p.state === 'done', bad = p.state === 'bad', pulse = 1 + Math.sin(G.t * 4 + p.x) * 0.04;
-    ctx.save(); ctx.translate(p.x, p.y);
-    ctx.fillStyle = 'rgba(10,8,30,0.35)'; ellipse(0, 10, p.r + 6, (p.r + 6) * 0.45); ctx.fill();
-    ctx.fillStyle = done ? 'rgba(43,196,180,0.55)' : bad ? 'rgba(224,87,62,0.7)' : 'rgba(255,243,220,0.25)'; circle(0, 0, p.r * pulse); ctx.fill();
-    ctx.lineWidth = 4; ctx.strokeStyle = done ? C.tealL : bad ? C.bad : C.mustard; circle(0, 0, p.r * pulse); ctx.stroke();
-    ctx.save(); circle(0, 0, p.r - 9); ctx.clip();
-    const img = photoOf(p.item);
-    if (img) { ctx.globalAlpha = done ? 0.55 : 1; drawCover(img, -p.r + 9, -p.r + 9, (p.r - 9) * 2, (p.r - 9) * 2); }
-    else { ctx.fillStyle = '#3b3570'; ctx.fillRect(-p.r, -p.r, p.r * 2, p.r * 2); }
+// 타이밍 퀴즈: 화면 아래 가운데의 카드 띠
+function drawTicker() {
+  const q = G.quiz; if (!q || q.type !== 'timing' || G.boss) return;
+  const T = TICK, want = q.ch.items[q.step];
+  panel(T.x, T.y, T.w, T.h, { fill: 'rgba(16,14,40,0.94)', stroke: C.mustard, r: 16, lw: 3 });
+  txt('제' + q.g.socket + '조 · ' + q.ch.mov + '   지금 차례: ' + roleOf(q.ch, want), T.x + 16, T.y + 17, 16, C.amberL, 'left', { weight: 900 });
+  q.ch.items.forEach((it, i) => {
+    const x = T.x + T.w - 186 + i * 60, ok = i < q.step;
+    rr(x, T.y + 6, 54, 22, 11); ctx.fillStyle = ok ? C.good : i === q.step ? C.mustard : 'rgba(255,244,220,0.15)'; ctx.fill();
+    txt((ok ? '✓ ' : '') + (q.ch.order === 'year' ? (i + 1) + '번' : it.role), x + 27, T.y + 17, 12, ok || i === q.step ? C.ink : '#c9c2ef', 'center', { weight: 900 });
+  });
+  const sy = T.y + 34, sh = 96;
+  ctx.save(); rr(T.x + 6, sy - 2, T.w - 12, sh + 4, 10); ctx.clip();
+  ctx.fillStyle = 'rgba(40,36,80,0.9)'; ctx.fillRect(T.x, sy - 2, T.w, sh + 4);
+  for (const p of tickerCards(q)) {
+    if (p.x < T.x - 70 || p.x > T.x + T.w + 70) continue;
+    const cx = p.x, it = p.c.it;
+    ctx.globalAlpha = p.c.got ? 0.4 : 1;
+    rr(cx - 60, sy + 2, 120, sh - 4, 10); ctx.fillStyle = '#fff3dc'; ctx.fill();
+    ctx.save(); rr(cx - 56, sy + 6, 112, 54, 8); ctx.clip();
+    const img = photoOf(it); if (img) drawCover(img, cx - 56, sy + 6, 112, 54); else { ctx.fillStyle = '#3b3570'; ctx.fillRect(cx - 56, sy + 6, 112, 54); }
     ctx.restore();
-    if (done) txt('✓', 0, 2, 40, C.tealL, 'center', { weight: 900, stroke: C.ink, sw: 6 });
-    setFont(17, 900); const tw = ctx.measureText(p.item.label).width + 22;
-    rr(-tw / 2, p.r + 6, tw, 28, 14); ctx.fillStyle = 'rgba(27,24,56,0.92)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = done ? C.tealL : C.cream; ctx.stroke();
-    txt(p.item.label, 0, p.r + 21, 17, done ? '#c8ffe4' : C.cream, 'center', { weight: 900 });
-    if (done) txt(q.ch.order === 'year' ? p.item.year : p.item.role, 0, -p.r - 14, 18, C.tealL, 'center', { weight: 900, stroke: C.ink, sw: 5 });
-    ctx.restore();
+    const ls = wrap(it.label, 108, 13, 900).slice(0, 2);
+    ls.forEach((l, j) => txt(l, cx, sy + 70 + j * 15 - (ls.length - 1) * 7, 13, C.ink, 'center', { weight: 900 }));
+    if (p.c.got) txt('✓', cx, sy + 33, 34, C.good, 'center', { weight: 900, stroke: C.ink, sw: 5 });
+    ctx.globalAlpha = 1;
   }
+  ctx.restore();
+  const fl = q.flash, col = fl ? (fl.ok ? C.good : C.bad) : C.mustard;
+  ctx.lineWidth = fl ? 7 : 5; ctx.strokeStyle = col; rr(W / 2 - 66, sy - 4, 132, sh + 8, 12); ctx.stroke();
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(W / 2 - 10, sy - 6); ctx.lineTo(W / 2 + 10, sy - 6); ctx.lineTo(W / 2, sy + 6); ctx.closePath(); ctx.fill();
 }
-// 단말기가 열리면: 조항과 발판 세 개를 미리 보여 준다
+// 타이밍 퀴즈를 시작하기 전 설명 카드
 function drawSockClaim() {
   modalStart(); dim(0.74);
   const q = G.quiz, t = G.claimT; if (!q) return;
   const g = q.g, ch = q.ch;
   ctx.save(); ctx.globalAlpha = Math.min(1, t * 4);
-  panel(150, 60, W - 300, 580, { fill: 'rgba(24,21,54,0.97)', stroke: C.mustard, r: 26, lw: 5 });
-  txt('제' + g.socket + '조 단말기가 열렸어요! · ' + ch.mov, W / 2, 112, 30, C.tealL, 'center', { weight: 900, stroke: C.ink, sw: 6 });
+  panel(150, 70, W - 300, 560, { fill: 'rgba(24,21,54,0.97)', stroke: C.mustard, r: 26, lw: 5 });
+  txt('제' + g.socket + '조 단말기가 열렸어요! · ' + ch.mov, W / 2, 122, 30, C.tealL, 'center', { weight: 900, stroke: C.ink, sw: 6 });
   const ql = wrap('제' + g.socket + '조  ' + articleOf(g.socket).text, 840, 36, 900);
-  rr(220, 146, W - 440, 34 + ql.length * 48, 20); ctx.fillStyle = 'rgba(60,46,20,0.95)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.mustard; ctx.stroke();
-  ql.forEach((l, i) => txt(l, W / 2, 186 + i * 48, 36, C.amberL, 'center', { weight: 900, stroke: C.ink, sw: 6 }));
-  const y2 = 196 + ql.length * 48 + 34;
-  txt(ch.order === 'year' ? '기록 발판을 일어난 해 순서대로 밟으세요' : '기록 발판을 「문제 → 행동 → 제도」 순서대로 밟으세요', W / 2, y2, 26, C.cream, 'center', { weight: 900 });
-  txt('틀린 순서로 밟으면 발판이 반격해요', W / 2, y2 + 36, 19, '#c9c2ef', 'center', { weight: 600 });
-  q.pads.forEach((p, i) => {
-    const cx = W / 2 + (i - 1) * 280, cy = y2 + 124;
-    ctx.save(); circle(cx, cy, 44); ctx.clip();
-    const img = photoOf(p.item);
-    if (img) drawCover(img, cx - 44, cy - 44, 88, 88); else { ctx.fillStyle = '#3b3570'; ctx.fillRect(cx - 44, cy - 44, 88, 88); }
-    ctx.restore();
-    ctx.lineWidth = 4; ctx.strokeStyle = C.mustard; circle(cx, cy, 44); ctx.stroke();
-    txt(p.item.label, cx, cy + 66, 20, C.cream, 'center', { weight: 900 });
-  });
+  rr(220, 156, W - 440, 34 + ql.length * 48, 20); ctx.fillStyle = 'rgba(60,46,20,0.95)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.mustard; ctx.stroke();
+  ql.forEach((l, i) => txt(l, W / 2, 196 + i * 48, 36, C.amberL, 'center', { weight: 900, stroke: C.ink, sw: 6 }));
+  const y2 = 206 + ql.length * 48 + 40;
+  ['화면 아래에 기록 카드가 줄지어 지나가요.', '「문제 → 행동 → 제도」 차례에 맞는 카드가 가운데 칸에 오면', "'파동' 버튼을 눌러요 (키보드: E)", '다른 운동의 카드나 차례가 틀린 카드면 반격! 맞힐수록 빨라져요'].forEach((l, i) =>
+    txt(l, W / 2, y2 + i * 40, i === 2 ? 28 : 24, i === 2 ? C.mustard : C.cream, 'center', { weight: 900 }));
   ctx.restore();
-  if (t > 1.5) button(W / 2 - 170, 560, 340, 62, '발판 밟으러 가기!', () => { if (G.mode === 'sockClaim') { G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 1); } }, { size: 28 });
+  if (t > 1.5) button(W / 2 - 170, 548, 340, 62, '시작!', () => { if (G.mode === 'sockClaim') { G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 1); } }, { size: 28 });
 }
-// 다 밟으면: 정리표 한 줄(문제 → 행동 → 제도)을 크게 보여 주고 카드를 꽂는다
+// 빈칸 채우기·사진 조각 맞추기 카드(게임이 멈춘다)
+function drawQuizCard() {
+  modalStart(); dim(0.78);
+  const q = G.quiz; if (!q) return;
+  const ch = q.ch, g = q.g, t = G.quizT, a = Math.min(1, t * 4);
+  ctx.save(); ctx.globalAlpha = a;
+  panel(70, 28, W - 140, 664, { fill: 'rgba(24,21,54,0.97)', stroke: C.mustard, r: 26, lw: 5 });
+  txt('제' + g.socket + '조 단말기가 열렸어요! · ' + ch.mov + ' — ' + articleOf(g.socket).text, W / 2, 70, 24, C.tealL, 'center', { weight: 900, stroke: C.ink, sw: 5 });
+  ctx.restore();
+  const imgOf = it => photoOf(it);
+  const photoBox = (it, x, y, w, h) => { ctx.save(); rr(x, y, w, h, 10); ctx.clip(); const im = imgOf(it); if (im) drawCover(im, x, y, w, h); else { ctx.fillStyle = '#3b3570'; ctx.fillRect(x, y, w, h); } ctx.restore(); };
+  if (q.type === 'blank') {
+    txt(ch.order === 'year' ? '일어난 해 순서가 되도록, 빈칸에 들어갈 기록을 눌러요' : '정리표 한 줄의 빈칸에 들어갈 기록을 눌러요', W / 2, 112, 26, C.cream, 'center', { weight: 900 });
+    const solved = q.solvedT != null;
+    ch.items.forEach((it, i) => {
+      const x = 150 + i * 340, y = 140, w = 300, blank = i === ch.blank && !solved;
+      rr(x, y, w, 236, 16); ctx.fillStyle = blank ? 'rgba(247,197,72,0.1)' : 'rgba(10,30,30,0.85)'; ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = blank ? C.mustard : C.tealL; if (blank) ctx.setLineDash([12, 9]); rr(x, y, w, 236, 16); ctx.stroke(); ctx.setLineDash([]);
+      txt(ch.order === 'year' ? (blank ? '?' : it.year) : it.role, x + w / 2, y + 26, 26, blank ? C.mustard : C.tealL, 'center', { weight: 900 });
+      if (blank) txt('?', x + w / 2, y + 128, 80, C.mustard, 'center', { weight: 900, stroke: C.ink, sw: 8 });
+      else { photoBox(it, x + 24, y + 48, w - 48, 132); txt(it.label, x + w / 2, y + 206, 22, C.cream, 'center', { weight: 900 }); }
+      if (i < 2) txt('→', x + w + 20, y + 118, 36, C.mustard, 'center', { weight: 900 });
+    });
+    txt(solved ? '정답! 정리표 한 줄이 이어졌어요' : '아래 기록 중 하나를 골라요', W / 2, 410, 22, solved ? C.good : '#c9c2ef', 'center', { weight: 900 });
+    q.ui = [];
+    q.opts.forEach((o, i) => {
+      const x = 190 + i * 310, y = 432, w = 280, h = 180, bt = q.bad[o.label], sh = bt != null && t - bt < 0.4 ? Math.sin((t - bt) * 60) * 8 * (1 - (t - bt) / 0.4) : 0;
+      const isAns = o === ch.items[ch.blank];
+      const st = button(x, y, w, h, '', () => quizPickBlank(o), { draw: false, disabled: solved });
+      q.ui.push({ x, y, w, h, ok: isAns });
+      rr(x + sh, y, w, h, 16); ctx.fillStyle = solved && isAns ? 'rgba(46,160,110,0.9)' : bt != null ? 'rgba(120,40,40,0.9)' : st.hot ? 'rgba(80,70,150,0.95)' : 'rgba(46,40,92,0.95)'; ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = bt != null ? C.bad : st.hot ? C.mustard : C.cream; rr(x + sh, y, w, h, 16); ctx.stroke();
+      photoBox(o, x + sh + 20, y + 16, w - 40, 110);
+      txt(o.label, x + sh + w / 2, y + 152, 21, C.cream, 'center', { weight: 900 });
+    });
+    if (q.why && !solved) { const ls = wrap(q.why, 1040, 19, 600); ls.forEach((l, i) => txt(l, W / 2, 636 + i * 24, 19, '#ffb3a3', 'center', { weight: 600 })); }
+  } else {
+    txt('사진 조각을 하나 누르고, 바꿀 조각을 또 눌러요. 문제 → 행동 → 제도 줄에 맞게 사진을 맞춰요', W / 2, 108, 21, C.cream, 'center', { weight: 900 });
+    const gx = 300, gy = 136, tw = 200, th = 140, gap = 8;
+    q.ui = [];
+    ['문제', '행동', '제도'].forEach((rl, r) => {
+      const y = gy + r * (th + gap);
+      rr(gx - 120, y + th / 2 - 24, 104, 48, 24); ctx.fillStyle = q.done[r] ? C.good : 'rgba(255,244,220,0.12)'; ctx.fill();
+      txt(rl, gx - 68, y + th / 2, 24, q.done[r] ? C.ink : C.cream, 'center', { weight: 900 });
+    });
+    q.tiles.forEach((tl, i) => {
+      const r = Math.floor(i / 3), c = i % 3, x = gx + c * (tw + gap), y = gy + r * (th + gap), it = ch.items[tl.r];
+      const st = button(x, y, tw, th, '', () => quizPickTile(i), { draw: false, disabled: q.done[r] || q.solvedT != null });
+      q.ui.push({ x, y, w: tw, h: th, r: tl.r, c: tl.c });
+      ctx.save(); rr(x, y, tw, th, 8); ctx.clip();
+      const im = imgOf(it); if (im) drawCover(im, x - tl.c * tw, y, tw * 3, th); else { ctx.fillStyle = ['#5a3b70', '#3b5a70', '#705a3b'][tl.r]; ctx.fillRect(x, y, tw, th); txt(it.label, x + tw / 2 - tl.c * 0, y + th / 2, 18, C.cream, 'center'); }
+      ctx.restore();
+      ctx.lineWidth = q.sel === i ? 6 : 2; ctx.strokeStyle = q.sel === i ? C.mustard : q.done[r] ? C.good : st.hot ? C.cream : 'rgba(255,244,220,0.4)'; rr(x, y, tw, th, 8); ctx.stroke();
+    });
+    // 줄이 맞으면 오른쪽에 그 기록의 이름과 한 줄
+    ['문제', '행동', '제도'].forEach((rl, r) => {
+      if (!q.done[r]) return;
+      const it = ch.items[r], y = gy + r * (th + gap), x = gx + 3 * (tw + gap) + 6;
+      txt(it.label + ' ✓', x, y + th / 2 - 14, 20, C.good, 'left', { weight: 900 });
+      wrap(it.line || '', 200, 15, 600).slice(0, 2).forEach((l, j) => txt(l, x, y + th / 2 + 12 + j * 19, 15, '#c8f5ee', 'left', { weight: 600 }));
+    });
+    // 아래: 이 줄의 기록 세 장(차례는 섞여 있다). 어느 것이 문제·행동·제도인지 생각해서 맞춘다
+    txt('이 운동의 기록 (차례는 섞여 있어요)', 150, 606, 17, C.mustard, 'left', { weight: 900 });
+    q.hint.forEach((r, k) => {
+      const it = ch.items[r], x = 150 + k * 340, y = 622;
+      ctx.save(); rr(x, y, 70, 44, 6); ctx.clip(); const im = imgOf(it); if (im) drawCover(im, x, y, 70, 44); else { ctx.fillStyle = '#3b3570'; ctx.fillRect(x, y, 70, 44); } ctx.restore();
+      ctx.lineWidth = 2; ctx.strokeStyle = q.done[r] ? C.good : 'rgba(255,244,220,0.5)'; rr(x, y, 70, 44, 6); ctx.stroke();
+      txt(it.label + (q.done[r] ? ' ✓' : ''), x + 82, y + 22, 19, q.done[r] ? C.good : C.cream, 'left', { weight: 900 });
+    });
+    txt(q.solvedT != null ? '세 장면이 모두 맞았어요!' : '맞춘 줄은 초록으로 고정돼요', 1130, 606, 16, q.solvedT != null ? C.good : '#c9c2ef', 'right', { weight: 900 });
+  }
+}
+// 퀴즈를 풀면: 정리표 한 줄(문제 → 행동 → 제도)을 크게 보여 주고 카드를 꽂는다
 function drawChainCard() {
   modalStart(); dim(0.74);
   const c = G.chainCard, t = G.chainT; if (!c) return;
@@ -3648,8 +3760,9 @@ function drawProblemGlyph(k, x, y, s, hot) {
 }
 function drawCoreIcon(k, x, y) {
   if (k === 'pad') {
-    [-32, 0, 32].forEach((dx, i) => { ctx.fillStyle = i === 0 ? 'rgba(43,196,180,0.75)' : 'rgba(255,243,220,0.3)'; circle(x + dx, y + 4, 13); ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = i === 0 ? C.tealL : C.mustard; ctx.stroke(); });
-    txt('→', x - 16, y + 4, 13, C.cream, 'center', { weight: 900 }); txt('→', x + 16, y + 4, 13, C.cream, 'center', { weight: 900 });
+    [-34, 0, 34].forEach((dx, i) => { rr(x + dx - 13, y - 12, 26, 32, 5); ctx.fillStyle = i === 1 ? 'rgba(247,197,72,0.25)' : '#fff3dc'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = i === 1 ? C.mustard : C.tealL; if (i === 1) ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]); });
+    txt('?', x, y + 4, 18, C.mustard, 'center', { weight: 900 });
+    txt('→', x - 17, y + 4, 12, C.cream, 'center', { weight: 900 }); txt('→', x + 17, y + 4, 12, C.cream, 'center', { weight: 900 });
     txt('문제 행동 제도', x, y + 30, 11, C.cream, 'center', { weight: 600 });
     return;
   }
@@ -3808,6 +3921,7 @@ function drawStage() {
   else if (G.mode === 'rebut') drawRebutCard();
   else if (G.mode === 'sockClaim') drawSockClaim();
   else if (G.mode === 'chain') drawChainCard();
+  else if (G.mode === 'quizCard') drawQuizCard();
   else if (G.mode === 'down') drawDown();
   else if (G.mode === 'levelup') drawLevelUp();
   else if (G.mode === 'pause') drawPause();
@@ -4580,7 +4694,6 @@ function drawStorm() {
   for (const b of G.eB) { if (b.x < cam.x - 20 || b.x > cam.x + W + 20 || b.y < cam.y - 20 || b.y > cam.y + H + 20) continue; ctx.fillStyle = C.orange; circle(b.x, b.y, b.r); ctx.fill(); ctx.fillStyle = '#fff4c8'; circle(b.x, b.y, b.r * 0.5); ctx.fill(); }
   for (const s of G.shells || []) if (s.t >= 0) drawShell(s);
   if (G.boss && !G.boss.dead) { drawLasers(G.boss); G.boss.orbs.forEach(drawOrb); }
-  drawQuizPads();
   ctx.restore();
   if (G.mode !== 'play' || G.boss) return;
   // 신호: 화면 안이지만 모래에 가린 목표(밸브·발생기)와 기록 칩
@@ -5118,7 +5231,7 @@ function drawHUD() {
   rr(98, 74, hpw, 9, 5); ctx.fillStyle = 'rgba(10,8,30,0.8)'; ctx.fill();
   rr(98, 74, hpw * Math.min(1, G.xp / xpNeed(G.level)), 9, 5); ctx.fillStyle = C.teal; ctx.fill();
   txt('XP', 98, 93, 11, '#bdb6e6', 'left', { weight: 700 });
-  if (G.L.sockets && G.mode !== 'brief' && G.mode !== 'rules') drawCoreHud();
+  if (G.L.sockets && G.mode !== 'brief' && G.mode !== 'rules') { drawCoreHud(); drawTicker(); }
   else if (G.L.fatigue && G.mode !== 'brief' && G.mode !== 'rules') {
     const f = G.fatigue || 0, full = f >= 1 && G.restricted, show = G.restricted || f > 0.01 || G.t - G.freeT < 6;
     if (show) {
@@ -5267,7 +5380,8 @@ function drawControls() {
       txt('끌어서 이동', 150, H - 62, 16, C.cream, 'center', { weight: 600, stroke: C.ink, sw: 4 });
     }
     touchBtn(W - 120, H - 120, 70, '대시', dashR, () => { touchAct.dash = true; }, mech('lane') && G.L.restrict.noDash);
-    touchBtn(W - 270, H - 86, 54, D.skills[sk].name.split(' ').pop(), skR, () => { touchAct.skill = true; }, false, G.skillCd);
+    const tq = G.quiz && G.quiz.type === 'timing';
+    touchBtn(W - 270, H - 86, 54, tq ? '이거!' : D.skills[sk].name.split(' ').pop(), tq ? 0 : skR, () => { touchAct.skill = true; }, false, tq ? 0 : G.skillCd);
   } else {
     cdIcon(W - 150, H - 52, '대시', 'Shift', dashR);
     cdIcon(W - 64, H - 52, D.skills[sk].name, 'E', skR, G.skillCd);
@@ -5724,6 +5838,14 @@ if (DEBUG) {
     xp(n) { gainXp(n); },
     killGens(ids) { G.gens.forEach(g => { if (!ids || ids.includes(g.id)) { g.needAllies = 0; if (g.socket) { if (g.alive) killGen(g); } else damageGen(g, 9999); } }); },
     openSock(id) { startQuiz(G.gens.find(x => x.id === id)); },
+    // 퀴즈 상태(봇·확인용): 타이밍 카드 위치, 빈칸·조각 버튼 자리
+    quiz() {
+      const q = G.quiz; if (!q) return null;
+      const want = q.ch.items[q.step];
+      return { type: q.type, id: q.g.id, step: q.step, miss: q.miss, solved: q.solvedT != null, win: TICK.win, cx: W / 2,
+        cards: q.type === 'timing' ? tickerCards(q).map(p => ({ x: p.x, label: p.c.it.label, got: p.c.got, ok: p.c.it === want })) : null,
+        ui: q.ui || null, tiles: q.tiles ? q.tiles.map(t => [t.r, t.c]) : null, done: q.done || null, sel: q.sel };
+    },
     bossHp(f) { const b = G.boss; b.hp = b.maxHp * f; },
     down() { playerDown(); },
     guide() { const g = routeGoal(); return g ? { x: g.x, y: g.y } : null; },

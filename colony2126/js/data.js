@@ -527,27 +527,38 @@ window.COLONY_DATA = {
         { img: 's6c', text: '하지만 우리에겐 지구 사람들이 만든 {약속} 다섯 개가 있어요. 제도 카드로 오더의 원칙을 바꾸러 가요!' }
       ],
       slogans: [ ['오더 코어', '효율이 모든 것에 앞선다'], ['모듈 재가동', '분리 · 출전 금지 · 24시간 가동'], ['원칙은 하나', '사람보다 효율'] ],
-      /* 원칙 단말기 퀴즈: 단말기를 그 운동의 방법으로 열면 기록 발판 3개가 나온다. 순서대로 밟아야 제도 카드가 꽂힌다.
-         order: 'role' = 문제 → 행동 → 제도 순서, 'year' = 일어난 해 순서. 배열 순서 = 종장에서 만나는 순서이자 밟아야 하는 순서
-         line: 다 밟은 뒤 카드에 나오는 한 줄 설명 */
+      /* 원칙 단말기 퀴즈: 단말기를 그 운동의 방법으로 열면 정리표 한 줄(문제 → 행동 → 제도) 퀴즈가 나온다. 풀면 제도 카드가 꽂힌다.
+         quiz: 'timing' = 기록 카드가 지나가고, 차례에 맞는 카드가 가운데 칸에 오면 「파동」 버튼 / 'blank' = 빈칸에 들어갈 기록을 3장 중에서 고르기 /
+               'puzzle' = 세 기록 사진의 조각을 바꿔 맞추기
+         order: 'role' = 문제 → 행동 → 제도 순서, 'year' = 일어난 해 순서. chains 배열 순서 = 종장에서 만나는 순서
+         decoys: 타이밍에 섞이는 다른 운동의 기록 / blank: 빈칸 자리(0·1·2) / choices: 빈칸 퀴즈의 틀린 보기
+         line: 다 맞힌 뒤 카드에 나오는 한 줄 설명 */
       chains: [
-        { article: 3, mov: '노동', order: 'role', items: [
+        { article: 3, mov: '노동', order: 'role', quiz: 'timing',
+          decoys: [ { record: 'r2_saudi', label: '사우디 여성 운전 허용' }, { record: 'r4_iraq', label: '이라크 전쟁 반대 운동' }, { record: 'r5_dust', label: '국경을 넘는 황사' } ],
+          items: [
           { record: 'r3_child', label: '방직 공장의 아이', role: '문제', line: '아이까지 쉬지 못하고 오래 일했다' },
           { record: 'r3_1886', label: '시카고 8시간 파업', role: '행동', line: '하루 8시간 노동을 요구하며 파업했다' },
           { record: 'r3_ilo', label: '국제 노동 기구(ILO)', role: '제도', line: '1일 8시간 노동이 국제 기준이 되었다' } ] },
-        { article: 1, mov: '민권', order: 'role', items: [
+        { article: 1, mov: '민권', order: 'role', quiz: 'blank', blank: 1,
+          choices: [ { record: 'r3_1886', label: '시카고 8시간 파업' }, { record: 'r4_nuclear', label: '핵 실험 반대 시위' } ],
+          items: [
           { record: 'r1_sign', label: '인종 분리 표지판', role: '문제', line: '인종에 따라 사람을 나눴다' },
           { record: 'r1_king', label: '킹의 연설', role: '행동', line: '차별 없는 사회를 외치며 행진했다' },
           { record: 'r1_civil', label: '민권법', role: '제도', line: '인종 차별이 불법이 되었다' } ] },
-        { article: 5, mov: '환경', order: 'role', items: [
+        { article: 5, mov: '환경', order: 'role', quiz: 'puzzle', items: [
           { record: 'r5_2008', label: '말라붙은 아랄해', role: '문제', line: '물을 끌어다 써서 호수가 말라붙었다' },
           { record: 'r5_greenpeace', label: '그린피스', role: '행동', line: '시민들이 모여 자연을 지키러 나섰다' },
           { record: 'r5_paris', label: '파리 협정', role: '제도', line: '모든 나라가 함께 온실가스를 줄이기로 했다' } ] },
-        { article: 4, mov: '반전 평화', order: 'role', items: [
+        { article: 4, mov: '반전 평화', order: 'role', quiz: 'timing',
+          decoys: [ { record: 'r3_mayday', label: '메이데이' }, { record: 'r1_robben', label: '로벤섬 감방' }, { record: 'r5_ships', label: '바닥에 남은 배' } ],
+          items: [
           { record: 'r4_vietnam', label: '베트남 전쟁', role: '문제', line: '긴 전쟁으로 많은 사람이 희생되었다' },
           { record: 'r4_nuclear', label: '핵 실험 반대 시위', role: '행동', line: '대량 살상 무기에 반대하며 시위했다' },
           { record: 'r4_npt', label: '핵 확산 금지 조약(NPT)', role: '제도', line: '핵무기가 더 퍼지지 않게 약속했다' } ] },
-        { article: 2, mov: '여성', order: 'year', items: [
+        { article: 2, mov: '여성', order: 'year', quiz: 'blank', blank: 2,
+          choices: [ { record: 'r2_suffrage', label: '참정권을 요구한 여성들', year: '20세기 초' }, { record: 'r4_npt', label: '핵 확산 금지 조약(NPT)' } ],
+          items: [
           { record: 'r2_boston', label: '보스턴 마라톤 완주', year: '1967', line: '막아서는 감독관을 지나 끝까지 달렸다' },
           { record: 'r2_1971', label: '평등을 요구하는 행진', year: '1971', line: '교육·취업·임금의 평등을 요구했다' },
           { record: 'r2_1972', label: '여성 참가 공식 허용', year: '1972', line: '보스턴 마라톤이 여성 참가를 허용했다' } ] }
