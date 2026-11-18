@@ -1,6 +1,6 @@
 // 자동 플레이 봇: 실제 키 입력으로 한 스테이지를 처음(상황 컷)부터 보스 격파까지 플레이한다(순간 이동·무적 없음).
 // 쓰는 법(저장소 맨 위에서, Playwright 필요): node tools/playtest_bot.js [easy|normal] [정답률 0~1] [스테이지 번호]
-// 예: node tools/playtest_bot.js normal 0.8 5   → 15초마다 상태를 찍고, 끝나면 END clear/gameover 와 오류(ERR)를 보여 준다.
+// 예: node tools/playtest_bot.js normal 0.8 6   → 15초마다 상태를 찍고, 끝나면 END clear/gameover 와 오류(ERR)를 보여 준다.
 // 봇은 학생보다 훨씬 빠르게 움직이니 걸린 시간은 '최소 시간'으로만 본다. 새 스테이지의 장치를 넣으면 이 봇도 같이 고친다.
 const path = require('path'), os = require('os');
 const { chromium } = require('playwright');
@@ -40,9 +40,12 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
       if (rg && rg.active) { G.chips.forEach(c => { if (!c.got && !__colony.save.records[c.id] && !(G.restricted && G.L.restrict.lane && c.x < 1000)) allChips.push({ x: c.x, y: c.y, k: 'h' }); }); G.enemies.forEach(e => { if (e.chip && !e.dead) allChips.push({ x: e.x, y: e.y, k: 'e' }); }); }
       const shells = (G.shells || []).filter(s => !s.boom && s.t >= 0 && Math.hypot(s.x - P.x, s.y - P.y) < s.r + 30).map(s => ({ x: s.x, y: s.y }));
       const near = G.eB.filter(e => Math.hypot(e.x - P.x, e.y - P.y) < 120).map(e => ({ x: e.x, y: e.y }));
-      return { shells, work: !!(G.work && !G.work.done), race: G.race && G.race.on, stage: G.def.id, guide: __colony.guide(), allChips, gateOn: !!(rg && rg.active), restricted: G.restricted, mode: G.mode, time: G.time, P: { x: P.x, y: P.y, hp: P.hp, dead: P.dead }, max: G.st.maxHp, lives: G.lives, lv: G.level, zone: G.zoneIdx, objs, b, near, stats: G.stats, scene: __colony.scene, walls: G.walls.filter(w => w.active).map(w => w.id) };
+      const barOn = !!(G.L.barGaps && !G.race && G.restricted && !(G.off && G.off.bar));
+      return { barOn, shells, work: !!(G.work && !G.work.done), race: G.race && G.race.on, stage: G.def.id, guide: __colony.guide(), allChips, gateOn: !!(rg && rg.active), restricted: G.restricted, mode: G.mode, time: G.time, P: { x: P.x, y: P.y, hp: P.hp, dead: P.dead }, max: G.st.maxHp, lives: G.lives, lv: G.level, zone: G.zoneIdx, objs, b, near, stats: G.stats, scene: __colony.scene, walls: G.walls.filter(w => w.active).map(w => w.id) };
     });
     if (!s) break;
+    // 종장은 보스를 반박하면 엔딩 화면으로 넘어간다
+    if (s.scene === 'ending' || s.mode === 'ending') { await setKeys(new Set()); console.log('ZONE boss', (s.time - zoneT).toFixed(0) + 's'); console.log('END clear(ending)', JSON.stringify({ t: s.time.toFixed(0), lv: s.lv, lives: s.lives, stats: s.stats })); break; }
     if (s.scene !== 'stage') break;
     // 구간이 바뀔 때마다 그 구간에 걸린 시간(움직인 시간)을 찍는다
     if (s.zone !== lastZone && s.mode === 'play') { if (lastZone !== null) console.log('ZONE', ['A', 'B', 'C'][lastZone] || 'boss', (s.time - zoneT).toFixed(0) + 's'); lastZone = s.zone; zoneT = s.time; }
@@ -83,6 +86,8 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
       s.objs.sort((a, b) => Math.hypot(a.x - s.P.x, a.y - s.P.y) - Math.hypot(b.x - s.P.x, b.y - s.P.y));
       const o = s.objs[0]; tx = o.x; ty = o.y;
       if (o.k === 'g' && Math.hypot(o.x - s.P.x, o.y - s.P.y) < 170) { tx = s.P.x + Math.sin(s.time * 2) * 100; ty = s.P.y; }
+      // 종장 A: 출전 금지 차단막이 막고 있으면 안내 화살표(틈)를 따라간다
+      if (s.barOn && s.guide && Math.hypot(s.guide.x - o.x, s.guide.y - o.y) > 50) { tx = s.guide.x; ty = s.guide.y; }
       if (o.k === 't' && Math.hypot(o.x - s.P.x, o.y - s.P.y) < 60) { tx = s.P.x; ty = s.P.y; }
     } else if (s.zone === -1 && !s.b && s.P.y < 812) { tx = 800; ty = 600; }
     else if (!s.objs.length && s.gateOn && s.guide) { tx = s.guide.x; ty = s.guide.y; }
