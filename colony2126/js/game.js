@@ -697,6 +697,7 @@ function drawProblemsCard(t) {
 function stageLock(id) {
   const s = stageById(id);
   if (!s || !s.ready) return '준비 중';
+  if (save.teacher) return null;   // 선생님 모드: 모든 스테이지가 열린다
   if (id === 6 && ![1, 2, 3, 4, 5].every(i => save.cleared[i])) return save.cleared[5] ? '다섯 곳을 깨면 열려요' : '5스테이지를 깨면 열려요';
   if (id > 1 && !save.cleared[id - 1]) return (id - 1) + '스테이지를 깨면 열려요';
   return null;
@@ -710,6 +711,13 @@ function SelectScene() {
       dim(0.35);
       panel(24, 20, W - 48, 96, { fill: 'rgba(27,24,56,0.9)' });
       txt('스테이지 고르기', 50, 54, 32, C.cream, 'left', { weight: 900 });
+      // 선생님 모드: 제목을 빠르게 5번 누르면 모든 스테이지가 열린다(다시 5번 누르면 꺼진다)
+      button(40, 26, 280, 52, '', () => {
+        this.taps = (this.taps || []).filter(t => this.t - t < 2.5).concat(this.t);
+        if (this.taps.length >= 5) { this.taps = []; save.teacher = !save.teacher; writeSave(); this.teacherT = this.t; }
+      }, { draw: false, focusable: false });
+      if (save.teacher) { rr(290, 38, 250, 30, 15); ctx.fillStyle = 'rgba(43,196,180,0.9)'; ctx.fill(); txt('선생님 모드 · 모두 열림', 415, 54, 16, C.ink, 'center', { weight: 900 }); }
+      if (this.teacherT != null && this.t - this.teacherT < 2.5) txt(save.teacher ? '선생님 모드를 켰어요. 모든 스테이지가 열려요' : '선생님 모드를 껐어요', W / 2, 300, 24, C.tealL, 'center', { weight: 900, stroke: C.ink, sw: 6 });
       txt('효율만 따지는 오더 때문에 생긴 문제를, 지구 기록으로 하나씩 바꿔요', 50, 92, 19, C.tealL, 'left', { weight: 600 });
       const cardsN = Object.keys(save.cards).length;
       txt('Lv ' + save.level + '   ·   정착촌 헌장 ' + cardsN + '/5조   ·   ' + (save.difficulty === 'easy' ? '쉬움' : '보통'), W - 50, 54, 21, C.amberL, 'right');

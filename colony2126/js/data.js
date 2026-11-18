@@ -610,7 +610,7 @@ window.COLONY_DATA = {
   ending: {
     /* 구글 시트로 보내기: 선생님이 만든 Apps Script 웹 앱 주소(https://script.google.com/macros/s/…/exec)를 따옴표 안에 붙여 넣으세요.
        비워 두면 보내지 않아요. 만드는 법은 저장소의 tools/gas/README.md */
-    sheetUrl: '',
+    sheetUrl: 'https://script.google.com/macros/s/AKfycbwThThrW_QuSGtxKaq3OtwpbXw-HFQ16CTzhPS-K5_bwy0ZZd4TQaU20EeqLANWwwm7/exec',
     error: ['오류: 효율만으로는 판단할 수 없습니다.', '효율 외의 원칙이 필요합니다.', '새 원칙을 입력하세요.'],
     /* 재부팅 뒤 스테이지마다 바뀐 모습 (그림: img/after1~after5) */
     reboot: [
