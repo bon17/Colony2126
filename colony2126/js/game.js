@@ -1724,13 +1724,13 @@ function layoutStage6() {
   sock('k2', 430, 5470, 2, 'bar', 'women', 300, { ally: 1, join: '같이 달리자!', offText: '출전 금지 차단막이 열렸어요' });
   wall('wC', 70, 4400, 1460, 16, ['k1', 'k2'], { quiet: true });
   // B: 벨트 4줄(끝에 압착기), 양쪽 벽의 발사대, 잠긴 쉼터
-  sock('k3', 800, 3400, 3, 'belt', 'ilo', 340, { ally: 2, join: '퇴근! 같이 가요!', offText: '벨트가 멈추고 쉼터가 열렸어요' });
-  sock('k4', 800, 2400, 4, 'arms', 'npt', 340, { ally: 4, join: '무기 말고 평화!', offText: '발사대가 내려갔어요. 하지만 잔여 신호는 아직 깜박여요' });
+  sock('k3', 360, 2850, 3, 'belt', 'ilo', 420, { ally: 2, join: '퇴근! 같이 가요!', offText: '벨트가 멈추고 쉼터가 열렸어요' });
+  sock('k4', 1250, 3420, 4, 'arms', 'npt', 420, { ally: 4, join: '무기 말고 평화!', offText: '발사대가 내려갔어요. 하지만 잔여 신호는 아직 깜박여요' });
   wall('wB', 130, 2200, 1340, 16, ['k3', 'k4'], { quiet: true });
   // C: 모래폭풍 속 제5조 단말기와 코어 방어기
-  sock('k5', 800, 1330, 5, 'storm', 'paris', 420, { ally: 0, join: '물과 공기는 함께 지켜요!', offText: '모래폭풍이 걷혔어요' });
+  sock('k5', 400, 1720, 5, 'storm', 'paris', 520, { ally: 0, join: '물과 공기는 함께 지켜요!', offText: '모래폭풍이 걷혔어요' });
   wall('wA', 0, 796, 1600, 16, ['k5', 'g3a', 'g3b']);
-  gen('g3a', 330, 935, 140, { name: '코어 방어기' }); gen('g3b', 1270, 935, 140, { name: '코어 방어기' });
+  gen('g3a', 330, 935, 200, { name: '코어 방어기' }); gen('g3b', 1270, 935, 200, { name: '코어 방어기' });
   wall('gate', 560, 712, 480, 16, [], { active: false, fade: 0, gate: true });
   // 헌장 문: 다섯 단말기가 모두 켜지면 열린다(이때 모든 제한이 풀린다)
   wall('charter', 560, 744, 480, 16, ['k1', 'k2', 'k3', 'k4', 'k5'], { charter: true, soft: true, divider: true });
@@ -1739,8 +1739,8 @@ function layoutStage6() {
       pool: ['drone', 'chaser', 'drone'], max: 5, every: 3.6,
       initial: [['drone', 1150, 5450], ['drone', 1420, 5100], ['chaser', 1300, 4720], ['turret', 1460, 4560], ['drone', 600, 4700], ['chaser', 300, 5100], ['turret', 160, 5560]] },
     { y0: 2216, y1: 4400, exit: 'wB', check: { x: 800, y: 4340 }, label: 'B 구역 · 가동 층',
-      pool: ['drone', 'chaser', 'drone'], max: 5, every: 3.4,
-      initial: [['drone', 600, 3950], ['chaser', 1000, 3900], ['turret', 1150, 3300], ['guard', 460, 3320], ['drone', 700, 2900], ['turret', 450, 2420], ['chaser', 1150, 2380]] },
+      pool: ['drone', 'chaser', 'drone'], max: 6, every: 3.0,
+      initial: [['drone', 600, 3950], ['chaser', 1000, 3900], ['turret', 1100, 3300], ['guard', 560, 2880], ['drone', 800, 3000], ['turret', 450, 2420], ['chaser', 1150, 2380]] },
     { y0: 812, y1: 2200, exit: 'wA', check: { x: 800, y: 2140 }, label: 'C 구역 · 코어 입구',
       pool: ['drone', 'chaser', 'drone'], max: 6, every: 3.2,
       initial: [['turret', 230, 1060], ['turret', 1370, 1060], ['guard', 560, 1400], ['guard', 1040, 1400], ['drone', 480, 1800], ['chaser', 1120, 1700], ['drone', 800, 1950]] }
@@ -1753,11 +1753,11 @@ function layoutStage6() {
               { x: 130, y: 2560, w: 1340, h: 160, dx: 1, dy: 0, speed: 125 } ];
   L.islands = [];
   L.presses = [ { x: 130, y: 4060, w: 90, h: 160 }, { x: 1380, y: 3640, w: 90, h: 160 }, { x: 130, y: 2980, w: 90, h: 160 }, { x: 1380, y: 2560, w: 90, h: 160 } ];
-  L.rests = [ { x: 1180, y: 3200, w: 260, h: 180 }, { x: 170, y: 2250, w: 240, h: 170 } ];
+  L.rests = [ { x: 170, y: 3200, w: 260, h: 180 }, { x: 170, y: 2250, w: 240, h: 170 } ];
   // 발사대: 잔여 신호(빨간 불)가 다시 켰다. 공격이 통하지 않고 제4조(NPT)를 꽂으면 내려간다
   const lau = (side, y, o) => Object.assign({ side, x: side === 'a' ? 172 : 1428, y, folded: false, foldK: 0, t: Math.random() * 5, fireT: rand(1.5, 4.5) }, o || {});
   L.launchers = [ lau('a', 4310), lau('b', 3930), lau('a', 3520), lau('b', 3260), lau('a', 2860), lau('b', 2840), lau('a', 2440), lau('b', 2330, { resid: true }) ];
-  [[560, 5560], [880, 4560], [1110, 5450], [340, 3460], [1260, 3460], [600, 2420], [1000, 2440], [520, 1150], [1080, 1150], [380, 1650], [1220, 1600]]
+  [[560, 5560], [880, 4560], [1110, 5450], [620, 3260], [1000, 3300], [600, 2420], [1000, 2440], [520, 1150], [1080, 1150], [640, 1640], [1220, 1600]]
     .forEach(c => L.solids.push({ x: c[0] - 28, y: c[1] - 28, w: 56, h: 56, crate: true }));
   L.solids.push({ x: 0, y: 4400, w: 70, h: 1700, space: true }, { x: 1530, y: 4400, w: 70, h: 1700, space: true },
                 { x: 0, y: 2200, w: 130, h: 2200, fwall: true }, { x: 1470, y: 2200, w: 130, h: 2200, fwall: true },
