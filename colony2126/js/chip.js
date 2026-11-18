@@ -43,8 +43,9 @@
     src.buffer = K.noise; src.loop = true;
     f.type = o.type || 'highpass'; f.frequency.setValueAtTime(o.f || 1000, o.t); f.Q.value = o.q || 0.8;
     if (o.to) f.frequency.exponentialRampToValueAtTime(o.to, o.t + o.d);
-    g.gain.setValueAtTime(0.0001, o.t); g.gain.linearRampToValueAtTime(o.v, o.t + (o.a || 0.002));
-    g.gain.exponentialRampToValueAtTime(0.0001, o.t + o.d);
+    g.gain.setValueAtTime(0.0001, o.t);
+    if (o.swell) { g.gain.linearRampToValueAtTime(o.v, o.t + o.d / 2); g.gain.linearRampToValueAtTime(0.0001, o.t + o.d); }
+    else { g.gain.linearRampToValueAtTime(o.v, o.t + (o.a || 0.002)); g.gain.exponentialRampToValueAtTime(0.0001, o.t + o.d); }
     src.connect(f); f.connect(g); g.connect(out);
     src.start(o.t, Math.random() * 0.5); src.stop(o.t + o.d + 0.05);
   }
@@ -114,73 +115,130 @@
       tone(c, o, { wave: s === 'soft' ? 'triangle' : 'square', f: 160, to: 40, t, d: 0.35, v: 0.3 });
       ['E7', 'B6', 'G7', 'D7', 'A6'].forEach((n, i) => tone(c, o, { wave: s === 'soft' ? 'sine' : 'p12', f: freq(n), t: t + 0.03 + i * 0.045, d: 0.12, v: s === 'soft' ? 0.14 : 0.07, decay: 0.12 }));
     },
+    // 발생기·장치가 부서짐: 쿵
+    boom(c, o, t, s) {
+      hiss(c, o, { t, d: 0.55, type: 'lowpass', f: 1600, to: 120, v: s === 'soft' ? 0.45 : 0.6 });
+      tone(c, o, { wave: s === 'soft' ? 'sine' : 'triangle', f: 110, to: 35, t, d: 0.4, v: 0.5 });
+    },
     // 단추 누름: 톡
     ui(c, o, t, s) { tone(c, o, { wave: s === 'soft' ? 'sine' : 'p25', f: freq('A5'), t, d: 0.035, v: s === 'soft' ? 0.22 : 0.1 }); }
   };
-  const SFX_NAMES = { dash: '대시', skill: '공명 파동', record: '기록 줍기', card: '카드 꽂기', good: '정답', bad: '오답', hurt: '맞음', level: '레벨 업', ally: '동료 합류', shield: '보스 방어막 깨짐', ui: '단추 누름' };
+  const SFX_NAMES = { dash: '대시', skill: '공명 파동', record: '기록 줍기', card: '카드 꽂기', good: '정답', bad: '오답', hurt: '맞음', level: '레벨 업', ally: '동료 합류', shield: '보스 방어막 깨짐', boom: '장치 부서짐', ui: '단추 누름' };
 
   /* ---------------- 배경 음악 ----------------
      멜로디는 8분음표 칸: 음 이름, '-' = 앞 음을 늘림, '.' = 쉼. 한 줄 = 한 마디(8칸)
      chords = 마디마다 화음(베이스와 아르페지오가 쓴다) */
   const SONGS = {
+    // 시작 화면·스테이지 고르기·결과: 잔잔하게(다장조)
+    menu: { bpm: 92, bass: 'walk', drums: 'soft',
+      chords: ['C2:C3 E3 G3', 'A1:A2 C3 E3', 'F1:F2 A2 C3', 'G1:G2 B2 D3', 'C2:C3 E3 G3', 'E2:E3 G3 B3', 'F1:F2 A2 C3', 'G1:G2 B2 D3'],
+      lead: ['E5 - G5 - C6 - B5 G5', 'A5 - E5 - C5 - - -', 'F5 - A5 - C6 - A5 F5', 'G5 - - - D5 - . .',
+             'E5 - G5 - C6 - D6 E6', 'D6 - B5 - G5 - E5 -', 'F5 - E5 - D5 - C5 -', 'D5 - - - G4 - . .'] },
     // 1스테이지 「분리 구역」: 가라앉은 긴장(가단조)
     stage1: { bpm: 108, bass: 'walk', drums: 'light',
       chords: ['A2:A3 C4 E4', 'F2:F3 A3 C4', 'G2:G3 B3 D4', 'E2:E3 G3 B3', 'A2:A3 C4 E4', 'F2:F3 A3 C4', 'G2:G3 B3 D4', 'E2:E3 G#3 B3'],
       lead: ['A4 - C5 - E5 - D5 C5', 'C5 - A4 - F4 - A4 -', 'B4 - D5 - G5 - F5 E5', 'E5 - - - B4 - . .',
              'A4 - C5 - E5 - A5 -', 'G5 F5 E5 - C5 - A4 -', 'B4 - D5 - G4 - B4 -', 'G#4 - B4 - E5 - - -'] },
-    // 보스전: 빠르고 몰아치는 느낌(라단조)
-    boss: { bpm: 144, bass: 'drive', drums: 'full',
+    // 2스테이지 「협곡 레이스」: 빠르고 밝게 달리기(라장조)
+    stage2: { bpm: 152, bass: 'drive', drums: 'full',
+      chords: ['D2:D3 F#3 A3', 'B1:B2 D3 F#3', 'G1:G2 B2 D3', 'A1:A2 C#3 E3', 'D2:D3 F#3 A3', 'B1:B2 D3 F#3', 'G1:G2 B2 D3', 'A1:A2 C#3 E3'],
+      lead: ['D5 F#5 A5 F#5 D6 - A5 -', 'B5 A5 F#5 D5 B4 - D5 -', 'G5 - B5 - D6 B5 G5 B5', 'A5 - E5 - C#5 - A4 -',
+             'F#5 - A5 - D6 - F#6 -', 'E6 D6 B5 - F#5 - B5 -', 'D6 B5 G5 B5 D6 - E6 -', 'C#6 - A5 - E5 - . .'] },
+    // 3스테이지 「산소 공장」: 기계가 도는 박자(마단조)
+    stage3: { bpm: 120, bass: 'pump', drums: 'machine',
+      chords: ['E2:E3 G3 B3', 'E2:E3 G3 B3', 'C2:C3 E3 G3', 'D2:D3 F#3 A3', 'E2:E3 G3 B3', 'E2:E3 G3 B3', 'C2:C3 E3 G3', 'B1:B2 D#3 F#3'],
+      lead: ['E5 . E5 . G5 . E5 .', 'B5 - A5 - G5 - F#5 -', 'E5 . E5 . G5 . E5 .', 'A5 - G5 - F#5 - D5 -',
+             'E5 . G5 . B5 . E6 .', 'D6 - B5 - G5 - B5 -', 'C6 - B5 - G5 - E5 -', 'D#5 - F#5 - B5 - - -'] },
+    // 4스테이지 「두 돔 사이」: 행진 북, 끝에서 밝아짐(사단조 → 내림나장조)
+    stage4: { bpm: 100, bass: 'walk', drums: 'march',
+      chords: ['G1:G2 Bb2 D3', 'Eb2:Eb3 G3 Bb3', 'C2:C3 Eb3 G3', 'D2:D3 F#3 A3', 'G1:G2 Bb2 D3', 'Eb2:Eb3 G3 Bb3', 'F2:F3 A3 C4', 'Bb1:Bb2 D3 F3'],
+      lead: ['G4 - Bb4 - D5 - - -', 'Eb5 - D5 - Bb4 - G4 -', 'C5 - Eb5 - G5 - F5 Eb5', 'D5 - - - F#4 - A4 -',
+             'G4 - Bb4 - D5 - G5 -', 'G5 - F5 - Eb5 - Bb4 -', 'C5 - F5 - A5 - C6 -', 'Bb5 - - - F5 - D5 -'] },
+    // 5스테이지 「마른 얼음 호수」: 바람 소리, 느리고 넓게(라 도리아)
+    stage5: { bpm: 84, bass: 'pad', drums: 'wind',
+      chords: ['D2:D3 F3 A3', 'C2:C3 E3 G3', 'Bb1:Bb2 D3 F3', 'C2:C3 E3 G3', 'D2:D3 F3 A3', 'F2:F3 A3 C4', 'G1:G2 B2 D3', 'A1:A2 C#3 E3'],
+      lead: ['A5 - - - F5 - D5 -', 'E5 - - - G5 - - -', 'F5 - - - D5 - Bb4 -', 'C5 - - - - - . .',
+             'D5 - F5 - A5 - - -', 'C6 - - - A5 - F5 -', 'B5 - - - G5 - D5 -', 'C#5 - - - E5 - - -'] },
+    // 종장 「오더 코어」: 무겁고 단단하게(다단조)
+    stage6: { bpm: 126, bass: 'drive', drums: 'full',
+      chords: ['C2:C3 Eb3 G3', 'Ab1:Ab2 C3 Eb3', 'Bb1:Bb2 D3 F3', 'G1:G2 B2 D3', 'C2:C3 Eb3 G3', 'Ab1:Ab2 C3 Eb3', 'F1:F2 Ab2 C3', 'G1:G2 B2 D3'],
+      lead: ['C5 - Eb5 - G5 - C6 -', 'Ab5 - G5 - Eb5 - C5 -', 'D5 - F5 - Bb5 - Ab5 G5', 'G5 - - - B4 - D5 -',
+             'Eb5 - G5 - C6 - Eb6 -', 'D6 - C6 - Ab5 - Eb5 -', 'F5 - Ab5 - C6 - Bb5 Ab5', 'G5 - - - B5 - D6 -'] },
+    // 보스전(1~5스테이지): 빠르고 몰아치는 느낌(라단조), 옛날 게임기 소리
+    boss: { bpm: 144, bass: 'drive', drums: 'full', style: 'retro',
       chords: ['D2:D3 F3 A3', 'D2:D3 F3 A3', 'Bb1:Bb2 D3 F3', 'C2:C3 E3 G3', 'D2:D3 F3 A3', 'D2:D3 F3 A3', 'Bb1:Bb2 D3 F3', 'A1:A2 C#3 E3'],
       lead: ['D5 . D5 F5 . D5 A5 -', 'G5 F5 E5 F5 D5 - . .', 'D5 . D5 F5 . D5 Bb5 -', 'A5 G5 F5 E5 C5 - . .',
-             'D6 - A5 - F5 - D5 -', 'E5 F5 G5 A5 F5 - D5 -', 'F5 - D5 - Bb4 - D5 F5', 'E5 - C#5 - A4 - - -'] }
+             'D6 - A5 - F5 - D5 -', 'E5 F5 G5 A5 F5 - D5 -', 'F5 - D5 - Bb4 - D5 F5', 'E5 - C#5 - A4 - - -'] },
+    // 종장 보스 「오더 본체」: 더 빠르게(다단조), 옛날 게임기 소리
+    bossFinal: { bpm: 156, bass: 'drive', drums: 'full', style: 'retro',
+      chords: ['C2:C3 Eb3 G3', 'C2:C3 Eb3 G3', 'Ab1:Ab2 C3 Eb3', 'Bb1:Bb2 D3 F3', 'C2:C3 Eb3 G3', 'C2:C3 Eb3 G3', 'Ab1:Ab2 C3 Eb3', 'G1:G2 B2 D3'],
+      lead: ['C5 . C5 Eb5 . C5 G5 -', 'F5 Eb5 D5 Eb5 C5 - . .', 'C5 . C5 Eb5 . C5 Ab5 -', 'Bb5 Ab5 G5 F5 D5 - . .',
+             'C6 - G5 - Eb5 - C5 -', 'D5 Eb5 F5 G5 Eb5 - C5 -', 'Eb5 - C5 - Ab4 - C5 Eb5', 'D5 - B4 - G4 - - -'] },
+    // 엔딩 「정착촌 헌장」: 따뜻하고 희망차게(바장조)
+    ending: { bpm: 84, bass: 'walk', drums: 'soft',
+      chords: ['F2:F3 A3 C4', 'C2:C3 E3 G3', 'D2:D3 F3 A3', 'Bb1:Bb2 D3 F3', 'F2:F3 A3 C4', 'C2:C3 E3 G3', 'Bb1:Bb2 D3 F3', 'C2:C3 E3 G3'],
+      lead: ['A5 - C6 - F5 - A5 -', 'G5 - - - E5 - C5 -', 'D5 - F5 - A5 - D6 -', 'C6 - Bb5 - A5 - G5 -',
+             'A5 - C6 - F6 - E6 D6', 'C6 - - - G5 - E5 -', 'F5 - G5 - A5 - Bb5 -', 'G5 - - - . . . .'] }
   };
   function drum(c, o, kind, t, s) {
     const soft = s === 'soft';
-    if (kind === 'k') { tone(c, o, { wave: 'sine', f: 150, to: 42, slide: 0.12, t, d: 0.16, v: soft ? 0.5 : 0.7, r: 0.04 }); }
+    if (kind === 'k') tone(c, o, { wave: 'sine', f: 150, to: 42, slide: 0.12, t, d: 0.16, v: soft ? 0.5 : 0.7, r: 0.04 });
     if (kind === 's') { hiss(c, o, { t, d: soft ? 0.09 : 0.14, type: soft ? 'bandpass' : 'highpass', f: soft ? 2600 : 1200, q: soft ? 1.2 : 0.7, v: soft ? 0.22 : 0.3 }); if (!soft) tone(c, o, { wave: 'triangle', f: 190, to: 120, t, d: 0.06, v: 0.25 }); }
+    if (kind === 'g') hiss(c, o, { t, d: 0.05, type: 'bandpass', f: 2600, q: 1.2, v: 0.08 });
     if (kind === 'h') hiss(c, o, { t, d: 0.03, type: 'highpass', f: 7500, v: soft ? 0.06 : 0.09 });
+    // 공장의 쇠 부딪는 소리
+    if (kind === 'c') { hiss(c, o, { t, d: 0.06, type: 'bandpass', f: 5200, q: 3, v: 0.2 }); tone(c, o, { wave: 'sine', f: 1480, t, d: 0.05, v: 0.06, decay: 0.05 }); }
   }
-  // 한 곡을 loops번 예약하고, 끝나는 시각을 돌려준다
-  function song(c, out, name, t0, s, loops) {
-    const S = SONGS[name], soft = s === 'soft', step = 60 / S.bpm / 4, bar = step * 16;
-    const bus = c.createGain(); bus.gain.value = 1; bus.connect(out);
+  // 북 박자: 16칸 중 어디에 무엇을 치나
+  const BEAT = {
+    light: i => [i === 0 || i === 8 || i === 10 ? 'k' : '', i === 4 || i === 12 ? 's' : '', i % 2 === 0 ? 'h' : ''],
+    soft: i => [i === 0 || i === 8 ? 'k' : '', '', i % 4 === 2 ? 'h' : ''],
+    full: i => [i % 4 === 0 ? 'k' : '', i === 4 || i === 12 ? 's' : '', 'h'],
+    machine: i => [i === 0 || i === 8 ? 'k' : '', i === 4 || i === 12 ? 'c' : '', i % 4 === 2 ? 'h' : ''],
+    march: i => [i === 0 || i === 8 ? 'k' : '', i === 4 || i === 12 ? 's' : (i === 6 || i === 14 || i === 15) ? 'g' : '', ''],
+    wind: i => ['', '', i % 4 === 0 ? 'h' : '']
+  };
+  // 한 마디를 예약하고 다음 마디가 시작하는 시각을 돌려준다(게임에서는 마디마다 이어 붙여 끝없이 돈다)
+  function songBar(c, out, name, bi, t, style) {
+    const S = SONGS[name]; if (!S) return t + 1;
+    const s = S.style || style || 'soft', soft = s === 'soft', step = 60 / S.bpm / 4, bar = step * 16;
+    bi = bi % S.chords.length;
     const leadW = soft ? 'triangle' : 'p25', arpW = soft ? 'sine' : 'p12', bassW = 'triangle';
-    let t = t0;
-    for (let L = 0; L < (loops || 1); L++) {
-      S.chords.forEach((cd, bi) => {
-        const [root, tones] = cd.split(':'), arp = tones.split(' ').map(freq), bt = t + bi * bar, rf = freq(root);
-        // 베이스
-        for (let i = 0; i < 8; i++) {
-          const f = S.bass === 'drive' ? rf * (i % 2 ? 2 : 1) : rf * (i % 4 === 2 ? 2 : 1) * (i === 7 ? 1.5 : 1);
-          if (S.bass === 'drive') { tone(c, bus, { wave: bassW, f, t: bt + i * 2 * step, d: step * 1.6, v: 0.34, r: 0.03 }); tone(c, bus, { wave: bassW, f: rf, t: bt + (i * 2 + 1) * step, d: step * 0.7, v: 0.22, r: 0.02 }); }
-          else if (i % 2 === 0) tone(c, bus, { wave: bassW, f, t: bt + i * 2 * step, d: step * 3, v: 0.3, r: 0.05 });
-        }
-        // 아르페지오(작게)
-        const pat = [0, 1, 2, 1];
-        for (let i = 0; i < 16; i++) tone(c, bus, { wave: arpW, f: arp[pat[i % 4]] * 2, t: bt + i * step, d: step * 0.6, v: soft ? 0.05 : 0.025, r: 0.02 });
-        // 북
-        for (let i = 0; i < 16; i++) {
-          const k = S.drums === 'full' ? i % 4 === 0 : (i === 0 || i === 8 || i === 10);
-          if (k) drum(c, bus, 'k', bt + i * step, s);
-          if (i === 4 || i === 12) drum(c, bus, 's', bt + i * step, s);
-          if (S.drums === 'full' ? true : i % 2 === 0) drum(c, bus, 'h', bt + i * step, s);
-        }
-        // 멜로디
-        const toks = S.lead[bi].split(' ');
-        for (let i = 0; i < toks.length; i++) {
-          const n = toks[i]; if (n === '-' || n === '.') continue;
-          let len = 1; while (toks[i + len] === '-') len++;
-          const d = len * step * 2 * 0.92;
-          tone(c, bus, { wave: leadW, f: freq(n), t: bt + i * step * 2, d, v: soft ? 0.2 : 0.09, vib: len > 1 ? 0.012 : 0, a: soft ? 0.012 : 0.004, r: soft ? 0.08 : 0.03 });
-          if (soft) tone(c, bus, { wave: 'sine', f: freq(n) * 2, t: bt + i * step * 2, d: Math.min(d, 0.25), v: 0.05, decay: 0.25 });
-        }
-      });
-      t += S.chords.length * bar;
+    const [root, tones] = S.chords[bi].split(':'), arp = tones.split(' ').map(freq), rf = freq(root);
+    // 베이스
+    if (S.bass === 'pad') { tone(c, out, { wave: bassW, f: rf, t, d: bar * 0.94, v: 0.3, a: 0.2, r: 0.2 }); tone(c, out, { wave: 'sine', f: rf * 1.5, t, d: bar * 0.94, v: 0.1, a: 0.4, r: 0.2 }); }
+    else for (let i = 0; i < 8; i++) {
+      const bt = t + i * 2 * step;
+      if (S.bass === 'drive') { tone(c, out, { wave: bassW, f: rf * (i % 2 ? 2 : 1), t: bt, d: step * 1.6, v: 0.34, r: 0.03 }); tone(c, out, { wave: bassW, f: rf, t: bt + step, d: step * 0.7, v: 0.22, r: 0.02 }); }
+      else if (S.bass === 'pump') tone(c, out, { wave: bassW, f: rf * (i % 4 === 3 ? 2 : 1), t: bt, d: step * 1.1, v: 0.34, r: 0.02 });
+      else if (i % 2 === 0) tone(c, out, { wave: bassW, f: rf * (i % 4 === 2 ? 2 : 1), t: bt, d: step * 3, v: 0.3, r: 0.05 });
     }
+    // 아르페지오(작게)
+    const pat = [0, 1, 2, 1], arpEvery = S.bass === 'pad' ? 2 : 1;
+    for (let i = 0; i < 16; i += arpEvery) tone(c, out, { wave: arpW, f: arp[pat[(i / arpEvery) % 4]] * 2, t: t + i * step, d: step * 0.6 * arpEvery, v: soft ? 0.05 : 0.025, r: 0.02 });
+    // 북
+    const beat = BEAT[S.drums] || BEAT.light;
+    for (let i = 0; i < 16; i++) beat(i).forEach(k => { if (k) drum(c, out, k, t + i * step, s); });
+    if (S.drums === 'wind' && bi % 2 === 0) { hiss(c, out, { t, d: bar * 2, type: 'bandpass', f: 380, to: 1500, q: 2, v: 0.09, swell: true }); }
+    // 멜로디
+    const toks = S.lead[bi].split(' ');
+    for (let i = 0; i < toks.length; i++) {
+      const n = toks[i]; if (n === '-' || n === '.') continue;
+      let len = 1; while (toks[i + len] === '-') len++;
+      const d = len * step * 2 * 0.92;
+      tone(c, out, { wave: leadW, f: freq(n), t: t + i * step * 2, d, v: soft ? 0.2 : 0.09, vib: len > 1 ? 0.012 : 0, a: soft ? 0.012 : 0.004, r: soft ? 0.08 : 0.03 });
+      if (soft) tone(c, out, { wave: 'sine', f: freq(n) * 2, t: t + i * step * 2, d: Math.min(d, 0.25), v: 0.05, decay: 0.25 });
+    }
+    return t + bar;
+  }
+  // 한 곡을 loops번 예약하고, 끝나는 시각을 돌려준다(샘플 파일 뽑기용)
+  function song(c, out, name, t0, style, loops) {
+    const n = SONGS[name].chords.length * (loops || 1);
+    let t = t0; for (let b = 0; b < n; b++) t = songBar(c, out, name, b, t, style);
     return t;
   }
   function songLength(name) { const S = SONGS[name]; return 60 / S.bpm * 4 * S.chords.length; }
 
-  window.ColonyChip = { freq, tone, hiss, SFX, SFX_NAMES, SONGS, song, songLength,
+  window.ColonyChip = { freq, tone, hiss, SFX, SFX_NAMES, SONGS, song, songBar, songLength,
     sfx(c, out, name, t, s) { if (SFX[name]) SFX[name](c, out, t, s || 'retro'); } };
 })();

@@ -1,5 +1,5 @@
 // 소리 샘플 뽑기: js/chip.js의 효과음·배경 음악을 브라우저(소리 없이)에서 파일로 그려 mp3로 저장한다.
-// 쓰는 법: node tools/sound_samples.js <저장할 폴더>
+// 쓰는 법: node tools/sound_samples.js <저장할 폴더> [곡 이름…(menu stage1 … boss bossFinal ending, 효과음은 sfx)]
 // 소리를 직접 틀지 않는다(OfflineAudioContext). mp3로 바꾸는 데 ffmpeg가 필요하다.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
@@ -41,14 +41,11 @@ const SR = 32000;
     h.write('data', 36); h.writeUInt32LE(pcm.length, 40);
     return Buffer.concat([h, pcm]);
   };
-  const jobs = [
-    ['효과음_가_옛날게임기', { kind: 'sfx', style: 'retro' }],
-    ['효과음_나_부드러운', { kind: 'sfx', style: 'soft' }],
-    ['음악_1스테이지_가_옛날게임기', { kind: 'song', name: 'stage1', style: 'retro', loops: 2 }],
-    ['음악_1스테이지_나_부드러운', { kind: 'song', name: 'stage1', style: 'soft', loops: 2 }],
-    ['음악_보스_가_옛날게임기', { kind: 'song', name: 'boss', style: 'retro', loops: 2 }],
-    ['음악_보스_나_부드러운', { kind: 'song', name: 'boss', style: 'soft', loops: 2 }]
-  ];
+  // 효과음은 부드러운 전자음, 음악은 곡마다 정한 소리(보스 두 곡만 옛날 게임기). 인자로 곡 이름을 주면 그 곡만 뽑는다
+  const only = process.argv.slice(3);
+  const songs = await page.evaluate(() => Object.keys(window.ColonyChip.SONGS));
+  const jobs = [['효과음', { kind: 'sfx', style: 'soft' }]].concat(songs.map(n => ['음악_' + n, { kind: 'song', name: n, style: 'soft', loops: 2 }]))
+    .filter(([name, job]) => !only.length || only.includes(job.name || 'sfx'));
   for (const [name, job] of jobs) {
     const r = await render(job);
     const w = path.join(OUT, name + '.wav'), m = path.join(OUT, name + '.mp3');

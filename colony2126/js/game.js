@@ -120,27 +120,66 @@ function writeSave() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)
 let save = loadSave();
 
 /* ---------------- 소리 (기본 꺼짐) ---------------- */
+// 소리: 효과음과 배경 음악을 따로 켜고 끈다. 둘 다 기본은 꺼짐(설정은 이 브라우저에만 저장)
+// 소리 재료와 악보는 js/chip.js(ColonyChip). 효과음은 부드러운 전자음, 보스 음악만 옛날 게임기 소리
+const SOUND_KEY = 'colony2126.sound.v1';
 const Sound = {
-  on: false, ac: null,
-  toggle() {
-    this.on = !this.on;
-    if (this.on && !this.ac) { try { this.ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { this.on = false; } }
-  },
-  play(kind) {
-    if (!this.on || !this.ac) return;
-    const P = { hit: [180, 0.12, 'square', 0.05], pick: [880, 0.14, 'sine', 0.07], good: [660, 0.35, 'triangle', 0.09],
-                bad: [140, 0.35, 'sawtooth', 0.06], boom: [80, 0.4, 'sawtooth', 0.08], level: [720, 0.4, 'sine', 0.08], ui: [520, 0.06, 'sine', 0.04] }[kind];
-    if (!P) return;
+  ac: null, sfxOn: false, bgmOn: false, master: null, sfxBus: null, bgmBus: null,
+  track: null, bus: null, bar: 0, nextT: 0, lastSfx: {},
+  load() { try { const o = JSON.parse(localStorage.getItem(SOUND_KEY) || '{}'); this.sfxOn = !!o.sfx; this.bgmOn = !!o.bgm; } catch (e) { /* 무시 */ } },
+  store() { try { localStorage.setItem(SOUND_KEY, JSON.stringify({ sfx: this.sfxOn, bgm: this.bgmOn })); } catch (e) { /* 무시 */ } },
+  // 소리 장치는 사용자가 처음 누를 때 만든다(브라우저 규칙)
+  ensure() {
+    if (!window.ColonyChip) return false;
+    if (this.ac) { if (this.ac.state === 'suspended' && !document.hidden) this.ac.resume().catch(() => {}); return true; }
     try {
-      const t = this.ac.currentTime, o = this.ac.createOscillator(), g = this.ac.createGain();
-      o.type = P[2]; o.frequency.setValueAtTime(P[0], t);
-      if (kind === 'good' || kind === 'level') o.frequency.exponentialRampToValueAtTime(P[0] * 1.6, t + P[1]);
-      if (kind === 'boom' || kind === 'bad') o.frequency.exponentialRampToValueAtTime(P[0] * 0.5, t + P[1]);
-      g.gain.setValueAtTime(P[3], t); g.gain.exponentialRampToValueAtTime(0.0001, t + P[1]);
-      o.connect(g); g.connect(this.ac.destination); o.start(t); o.stop(t + P[1] + 0.02);
-    } catch (e) { /* 무시 */ }
+      const ac = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = ac.createDynamicsCompressor(); comp.connect(ac.destination);
+      this.master = ac.createGain(); this.master.gain.value = 1; this.master.connect(comp);
+      this.sfxBus = ac.createGain(); this.sfxBus.gain.value = 0.42; this.sfxBus.connect(this.master);
+      this.bgmBus = ac.createGain(); this.bgmBus.gain.value = 0.2; this.bgmBus.connect(this.master);
+      this.ac = ac; return true;
+    } catch (e) { return false; }
+  },
+  setSfx(on) { this.sfxOn = on; this.store(); if (on && this.ensure()) this.play('ui'); },
+  setBgm(on) { this.bgmOn = on; this.store(); if (on) this.ensure(); else this.stopMusic(); },
+  play(kind) {
+    if (!this.sfxOn || !this.ensure()) return;
+    // 예전 이름 → 새 효과음. 자동 공격·드론 처치 소리는 넣지 않는다(계속 나서 시끄럽다)
+    const name = { pick: 'record', hit: 'hurt' }[kind] || kind;
+    if (!ColonyChip.SFX[name]) return;
+    const now = this.ac.currentTime;
+    if (this.lastSfx[name] && now - this.lastSfx[name] < 0.06) return;
+    this.lastSfx[name] = now;
+    try { ColonyChip.sfx(this.ac, this.sfxBus, name, now + 0.01, 'soft'); } catch (e) { /* 무시 */ }
+  },
+  stopMusic() {
+    if (this.bus && this.ac) { const b = this.bus, t = this.ac.currentTime; b.gain.cancelScheduledValues(t); b.gain.setValueAtTime(b.gain.value, t); b.gain.linearRampToValueAtTime(0.0001, t + 0.6); setTimeout(() => { try { b.disconnect(); } catch (e) { /* 무시 */ } }, 900); }
+    this.bus = null; this.track = null;
+  },
+  // 매 화면: 지금 장면에 맞는 곡을 고르고, 다음 마디를 미리 예약해 끝없이 이어 간다
+  update(want, quiet) {
+    if (!this.bgmOn || !this.ac || this.ac.state !== 'running') return;
+    if (want !== this.track) {
+      this.stopMusic();
+      if (!want || !ColonyChip.SONGS[want]) return;
+      this.track = want; this.bar = 0; this.nextT = this.ac.currentTime + 0.15;
+      this.bus = this.ac.createGain(); this.bus.gain.value = 1; this.bus.connect(this.bgmBus);
+    }
+    const t = this.ac.currentTime;
+    this.bus.gain.setTargetAtTime(quiet ? 0.45 : 1, t, 0.2);
+    if (this.nextT < t) this.nextT = t + 0.05;
+    let n = 0;
+    while (this.nextT < t + 0.8 && n++ < 2) { try { this.nextT = ColonyChip.songBar(this.ac, this.bus, this.track, this.bar, this.nextT); } catch (e) { this.nextT = t + 2; } this.bar++; }
   }
 };
+Sound.load();
+// 소리를 켜 둔 채 다시 열면, 처음 누를 때 소리 장치를 깨운다
+['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, () => { if (Sound.sfxOn || Sound.bgmOn) Sound.ensure(); }, { passive: true }));
+document.addEventListener('visibilitychange', () => {
+  if (!Sound.ac) return;
+  if (document.hidden) Sound.ac.suspend().catch(() => {}); else if (Sound.sfxOn || Sound.bgmOn) Sound.ac.resume().catch(() => {});
+});
 
 /* ---------------- 입력 ---------------- */
 const keys = {}, pressed = {};
@@ -304,8 +343,10 @@ function menuNav() {
   if (hit('ArrowUp') || hit('ArrowLeft') || hit('KeyW') || hit('KeyA')) { ui.focus = (ui.focus - 1 + f.length) % f.length; usingTouch = false; }
   if (hit('Enter') || hit('Space') || hit('NumpadEnter')) { const b = f[ui.focus]; if (b && b.fn) { Sound.play('ui'); b.fn(); } }
 }
-function soundButton(x, y) {
-  button(x, y, 170, 46, Sound.on ? '소리: 켬' : '소리: 끔', () => Sound.toggle(), { size: 18, fill: Sound.on ? C.tealL : '#d9d2f0' });
+// 효과음·배경 음악 버튼 두 개(가로 w씩, 사이 14)
+function soundButtons(x, y, w, h, size) {
+  button(x, y, w, h, Sound.sfxOn ? '효과음: 켬' : '효과음: 끔', () => Sound.setSfx(!Sound.sfxOn), { size: size || 18, fill: Sound.sfxOn ? C.tealL : '#d9d2f0' });
+  button(x + w + 14, y, w, h, Sound.bgmOn ? '배경 음악: 켬' : '배경 음악: 끔', () => Sound.setBgm(!Sound.bgmOn), { size: size || 18, fill: Sound.bgmOn ? C.tealL : '#d9d2f0' });
 }
 
 /* ---------------- 코드로 그린 캐릭터 ---------------- */
@@ -564,9 +605,9 @@ function TitleScene() {
       if (has) { button(bx, y, 340, 60, '이어 하기', () => go(() => SelectScene())); y += 74; }
       button(bx, y, 340, 60, has ? '새로 시작' : '시작하기', () => { if (has) { this.confirm = true; ui.focus = 1; } else go(() => DifficultyScene()); }); y += 74;
       button(bx, y, 340, 52, '지구 기록 보관소', () => openArchive(), { size: 21, fill: C.tealL });
-      soundButton(W - 190, H - 66);
-      button(W - 380, H - 66, 176, 46, forceTouch ? '터치 버튼: 켬' : '터치 버튼: 끔', () => setForceTouch(!forceTouch), { size: 18, fill: forceTouch ? C.tealL : '#d9d2f0' });
-      fsButton(W - 570, H - 66, 176, 46);
+      soundButtons(W - 380, H - 66, 176, 46);
+      button(W - 570, H - 66, 176, 46, forceTouch ? '터치 버튼: 켬' : '터치 버튼: 끔', () => setForceTouch(!forceTouch), { size: 18, fill: forceTouch ? C.tealL : '#d9d2f0' });
+      fsButton(W - 760, H - 66, 176, 46);
       txt('버튼을 눌러 고르기 (키보드: 방향키 + Enter)', 24, H - 26, 15, 'rgba(255,244,220,0.75)', 'left', { weight: 600, stroke: 'rgba(20,16,50,0.7)', sw: 4 });
       drawFsNote();
     }
@@ -2109,7 +2150,6 @@ function killEnemy(e) {
   const n = Math.max(1, Math.round(e.xp / 3));
   for (let i = 0; i < n; i++) G.gems.push({ x: e.x + rand(-10, 10), y: e.y + rand(-10, 10), v: e.xp / n, t: 0, vx: rand(-60, 60), vy: rand(-60, 60) });
   if (e.chip) { G.chips.push({ id: e.chip, x: e.x, y: e.y, t: 0, got: false }); e.chip = null; }
-  Sound.play('hit');
 }
 function updateEnemy(e, dt) {
   const P = G.P;
@@ -2234,7 +2274,7 @@ function useSkill() {
   const P = G.P;
   G.skillCd = skillCdOf(id); G.skillUsed = true;
   if (id === 'pulse') { G.pulses.push({ x: P.x, y: P.y, r: 10, max: 260, hit: new Set() }); G.shake = Math.max(G.shake, 5); }
-  Sound.play('good');
+  Sound.play('skill');
 }
 function gainXp(v) {
   G.xp += v;
@@ -2308,7 +2348,7 @@ function damageBoss(dmg, x, y) {
   b.hp -= dmg; b.flash = 0.06;
   const th = bossThreshold(b);
   if (b.hp <= th) {
-    if (b.round >= b.def.rounds.length - 1) { b.hp = 0; b.dying = 2.6; b.lasers = []; b.pat = null; b.orbs = []; G.eB = []; G.shake = 16; Sound.play('boom'); return; }
+    if (b.round >= b.def.rounds.length - 1) { b.hp = 0; b.dying = 2.6; b.lasers = []; b.pat = null; b.orbs = []; G.eB = []; G.shake = 16; Sound.play('shield'); return; }
     b.hp = th; b.round++; b.shield = true; b.orbsUp = false; b.orbT = 1.6; b.pat = null; b.patT = 1.4; b.lasers = [];
     G.shake = 10; burst(b.x, b.y, C.amber, 20, 260);
   }
@@ -2411,7 +2451,7 @@ function resolveOrb(b, orb) {
     if (G.L.bossPipes) { b.pipes = Math.max(0, b.pipes - 1); addText(b.x, b.y - 170, '파이프 하나가 닫혔어요 · 물이 돌아와요', C.tealL, 22); }
     if (G.L.finalBoss) addText(b.x, b.y - 190, '오더의 문양 하나가 꺼졌어요 (' + (b.round + 1) + '/' + b.def.rounds.length + ')', C.tealL, 22);
     G.rebut = { opt: o, claim: b.def.rounds[b.round].claim }; G.rebutT = 0; G.mode = 'rebut'; ui.focus = 0;
-    Sound.play('good');
+    Sound.play('shield');
   } else {
     G.stats.wrong++;
     b.orbs = b.orbs.filter(x => x !== orb);
@@ -2730,7 +2770,7 @@ function updatePlay(dt) {
     const dashPressed = hit('ShiftLeft') || hit('ShiftRight') || hit('Space') || touchAct.dash;
     if (dashPressed && mech('lane') && L.restrict.noDash) { if (G.t - (G.dashWarnT || -9) > 1.2) { G.dashWarnT = G.t; addText(P.x, P.y - 64, '대시 금지 · 지구 출신', C.bad, 19); } }
     else if (dashPressed && P.dashCd <= 0) {
-      P.dashT = 0.18; P.dashCd = st.dashCd; P.dashDir = P.moving ? { x: P.last.x, y: P.last.y } : { x: Math.cos(P.aim), y: Math.sin(P.aim) };
+      P.dashT = 0.18; P.dashCd = st.dashCd; P.dashDir = P.moving ? { x: P.last.x, y: P.last.y } : { x: Math.cos(P.aim), y: Math.sin(P.aim) }; Sound.play('dash');
       burst(P.x, P.y, C.tealL, 8, 160, 4);
     }
     // 종장 타이밍 퀴즈 중에는 「파동」 버튼이 카드를 고르는 버튼이 된다
@@ -2864,7 +2904,7 @@ function updatePlay(dt) {
       else G.settlers.push({ look: c.look, x: c.x, y: c.y, t: 0, fireT: 0.5, aim: -Math.PI / 2, moving: false });
       burst(c.x, c.y, C.tealL, 24, 220); if (!c.stay) showAllyTip();
       if (c.kind === 'worker') addText(c.x, c.y - 84, '고마워! 같이 멈추자!', C.tealL, 20);
-      Sound.play('good');
+      Sound.play('ally');
       G.gens.forEach(g => { if (g.alive && g.needAllies && !g.unlocked && G.settlers.length >= g.needAllies) { g.unlocked = true; burst(g.x, g.y - 30, C.tealL, 30, 300); banner('단결! 방어막이 풀렸어요', '이제 함께 「' + (g.name || '발생기') + '」를 부술 수 있어요', C.tealL, 3.6); } });
     }
   }
@@ -2933,7 +2973,7 @@ function killGen(g) {
   if (g.tower) onTowerLit(g);
   if (g.valve) onValveClosed(g);
   burst(g.x, g.y - 20, g.socket ? C.tealL : C.amber, 30, 320); burst(g.x, g.y - 20, C.cream, 14, 200);
-  gainXp(8); Sound.play(g.socket ? 'good' : 'boom');
+  gainXp(8); Sound.play(g.socket ? 'card' : 'boom');
   const freed = G.walls.some(w => w.active && w.divider && w.gens.every(id => !G.gens.find(x => x.id === id).alive));
   for (const w of G.walls) {
     if (!w.active || w.gate || !w.gens.length) continue;
@@ -5701,7 +5741,7 @@ function drawPause() {
   let y = 132;
   button(W / 2 - 170, y, 340, 58, '계속하기', () => { G.mode = 'play'; }); y += 70;
   button(W / 2 - 170, y, 340, 52, '지구 기록 보관소', () => openArchive(), { size: 21, fill: C.tealL }); y += 64;
-  button(W / 2 - 170, y, 340, 52, Sound.on ? '소리: 켬' : '소리: 끔', () => Sound.toggle(), { size: 21, fill: '#d9d2f0' }); y += 64;
+  soundButtons(W / 2 - 170, y, 163, 52, 19); y += 64;
   button(W / 2 - 170, y, 340, 52, forceTouch ? '터치 버튼: 켬 (태블릿)' : '터치 버튼: 끔 (태블릿)', () => setForceTouch(!forceTouch), { size: 20, fill: forceTouch ? C.tealL : '#d9d2f0' }); y += 64;
   fsButton(W / 2 - 170, y, 340, 52, 20); y += 64;
   button(W / 2 - 170, y, 340, 52, '스테이지 고르기', () => go(() => SelectScene()), { size: 21 }); y += 64;
@@ -5800,6 +5840,17 @@ function drawGameOver() {
 }
 
 /* ---------------- 메인 루프 ---------------- */
+// 지금 장면의 배경 음악: 시작·고르기·결과 = menu, 스테이지 = stageN, 보스전 = boss(종장은 bossFinal), 엔딩 = ending
+function musicFor() {
+  if (!scene) return null;
+  if (scene.name === 'ending') return 'ending';
+  if (scene.name === 'stage' && G && G.def) {
+    if (G.mode === 'clear') return 'menu';
+    if (G.boss && !G.boss.dead) return G.L.finalBoss ? 'bossFinal' : 'boss';
+    return 'stage' + G.def.id;
+  }
+  return 'menu';
+}
 let last = performance.now();
 function frame(now) {
   let dt = (now - last) / 1000; last = now;
@@ -5817,6 +5868,7 @@ function frame(now) {
     if (overlay) overlay.draw();
     if (fadeA > 0) { ctx.fillStyle = 'rgba(14,12,32,' + fadeA + ')'; ctx.fillRect(0, 0, W, H); }
     hitButtons = newButtons;
+    Sound.update(musicFor(), scene && scene.name === 'stage' && G && G.mode === 'pause');
   } catch (err) {
     console.error(err);
   }
@@ -5831,6 +5883,7 @@ if (DEBUG) {
   window.__colony = {
     get G() { return G; }, get scene() { return scene && scene.name; }, get sceneObj() { return scene; }, get save() { return save; },
     get mode() { return G && G.mode; }, get overlay() { return !!overlay; },
+    get sound() { return { track: Sound.track, sfx: Sound.sfxOn, bgm: Sound.bgmOn, state: Sound.ac && Sound.ac.state, bar: Sound.bar }; },
     start(id, withIntro) { overlay = null; setScene(StageScene(id || 1, { skipIntro: !withIntro })); },
     skipWork() { const ws = G.work; if (!ws || ws.done) return; ws.n = G.L.work.need; ws.carry = false; finishWork(); },
     tp(x, y) { G.P.x = x; G.P.y = y; },
