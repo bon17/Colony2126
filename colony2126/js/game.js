@@ -837,6 +837,16 @@ function drawCharterCard(x, y, w, h, card, o) {
   }
   ctx.restore();
 }
+// 구글 시트로 보내기(선생님이 data.js의 ending.sheetUrl에 Apps Script 웹 앱 주소를 넣었을 때만)
+const sheetUrl = () => String((D.ending && D.ending.sheetUrl) || '').trim();
+function sendCharter() {
+  const st = endingStats();
+  const body = JSON.stringify({ name: save.name || '', article6: save.charter6 || '', grade: st.grade, acc: st.acc, right: st.right, total: st.tot, level: st.level,
+    time: fmtTime(st.time), difficulty: save.difficulty === 'easy' ? '쉬움' : '보통', badges: (save.badges || []).length, date: save.endDate || '' });
+  // 응답을 읽지 않는 방식(no-cors)으로 보낸다. 네트워크가 막히면 실패로 본다
+  try { return fetch(sheetUrl(), { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body }).then(() => true, () => false); }
+  catch (e) { return Promise.resolve(false); }
+}
 function EndingScene(opts) {
   const E = D.ending, CH = D.charter, cardOf = a => cardById(CH.find(c => c.article === a).card) || { name: '', year: '', text: '' };
   const start = Math.max(0, END_STEPS.indexOf((opts && opts.at) || 'error'));
@@ -844,6 +854,12 @@ function EndingScene(opts) {
     name: 'ending', t: 0, st: 0, step: start,
     placed: {}, tray: shuffle(CH.map(c => c.article)), drag: null, sel: null, hint: null, hintT: -9, shake: {}, okT: {}, doneT: -1,
     cut: -1, cutT: 0, inputs: null, capture: false, savedT: -9,
+    sendState: sheetUrl() ? (save.charterSent ? 'sent' : 'idle') : 'off',
+    send() {
+      if (!sheetUrl()) { this.sendState = 'off'; return; }
+      this.sendState = 'sending'; save.charterSent = false; writeSave();
+      sendCharter().then(ok => { this.sendState = ok ? 'sent' : 'fail'; save.charterSent = ok; writeSave(); });
+    },
     go(n) { this.removeInputs(); this.step = n; this.st = 0; ui.focus = 0; if (END_STEPS[n] === 'write') this.makeInputs(); if (END_STEPS[n] === 'reboot') { this.cut = -1; this.cutT = 0; } },
     next() { this.go(this.step + 1); },
     rowY(i) { return 128 + i * 88; },
@@ -901,7 +917,7 @@ function EndingScene(opts) {
       if (v.length < 2) return;
       save.charter6 = v; save.name = this.inputs ? this.inputs.name.value.trim() : save.name || '';
       const d = new Date(); save.endDate = d.getFullYear() + '. ' + (d.getMonth() + 1) + '. ' + d.getDate() + '.';
-      writeSave(); this.next();
+      writeSave(); this.send(); this.next();
     },
     saveCard() {
       try {
@@ -1078,7 +1094,15 @@ function EndingScene(opts) {
         txt(r[0], rx + 8, yy, 20, '#6a6090', 'left', { weight: 600 }); txt(r[1], rx + rw - 8, yy, 22, C.ink, 'right', { weight: 900 });
         ctx.strokeStyle = 'rgba(176,90,30,0.2)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(rx, yy + 22); ctx.lineTo(rx + rw, yy + 22); ctx.stroke();
       });
-      if (IMG.logo) drawContain(IMG.logo, rx + 20, y + 440, rw - 40, 70);
+      const ss = this.sendState;
+      if (ss === 'off' || this.capture) { if (IMG.logo) drawContain(IMG.logo, rx + 20, y + 440, rw - 40, 70); }
+      else {
+        // 선생님 구글 시트로 보낸 상태
+        const lab = { sending: '선생님께 보내는 중…', sent: '선생님께 보냈어요 ✓', fail: '보내지 못했어요', idle: '아직 안 보냈어요' }[ss];
+        rr(rx, y + 432, rw, 34, 17); ctx.fillStyle = ss === 'sent' ? 'rgba(46,160,110,0.9)' : ss === 'fail' ? 'rgba(200,70,60,0.9)' : 'rgba(106,96,144,0.85)'; ctx.fill();
+        txt(lab, rx + rw / 2, y + 449, 18, '#fffbe8', 'center', { weight: 900 });
+        if (ss === 'fail' || ss === 'idle') button(rx + 30, y + 474, rw - 60, 44, ss === 'fail' ? '다시 보내기' : '선생님께 보내기', () => this.send(), { size: 19, fill: C.mustard });
+      }
       txt('헌장은 완성이 아니라 시작이에요. 그 노력은 지금도 계속되고 있어요.', x + w / 2, y + h - 34, 17, '#6a6090', 'center', { weight: 600 });
       if (this.capture) return;
       button(W / 2 - 440, 636, 280, 58, '그림으로 저장', () => this.saveCard(), { size: 22, fill: C.tealL });
@@ -1703,11 +1727,12 @@ function layoutStage6() {
     // 피로(3스테이지)와 모래폭풍(5스테이지)은 그 구역(zone 번호: 0 = A, 1 = B, 2 = C)에서만 느낀다
     fatigue: { fill: 40, drain: 1, floor: 0.45, idle: 0.35, slow: 0.3, zone: 1 },
     storm: { r0: 250, step: 0, domes: 0, zone: 2, gust: { every: [7, 10], warn: 1.3, blow: 2.4, power: 125 } },
-    bossPools: BOSS_POOLS6, bossStill: true, finalBoss: true,
+    // 오더 본체는 다른 보스(4000)보다 단단하다
+    bossPools: BOSS_POOLS6, bossStill: true, finalBoss: true, bossHp: 5600,
     npcBounds: { x0: 120, x1: 930, y0: 4480, y1: 6050 },
     legend: [
       { k: 'hero', n: '나 (지구 출신 학생)', t: '공명기로 가장 가까운 적을 자동으로 쏴요' },
-      { k: 'socket', n: '원칙 단말기', t: '잠금을 부수면 제도 카드가 꽂히고, 그 문제가 꺼져요' },
+      { k: 'socket', n: '원칙 단말기', t: '잠금을 부수고 조항의 근거 구슬에 닿으면 카드가 꽂혀요' },
       { k: 'bar', n: '분리선 · 출전 금지 차단막', t: '나만 막아요. 차단막은 틈으로 지나가요' },
       { k: 'belt', n: '벨트 · 발사대', t: '24시간 가동과 잔여 신호가 켠 발사대예요' },
       { k: 'storm', n: '모래폭풍', t: '내 둘레만 보이고 돌풍이 옆으로 밀어요' },
@@ -1716,7 +1741,7 @@ function layoutStage6() {
     flow: ['제1·2조 꽂기', '제3·4조 꽂기', '제5조 꽂기', '오더 본체 반박'],
     rules: [
       { k: 'core5', n: '다섯 문제가 한꺼번에', d: 'A 분리선·출전 금지, B 24시간 가동·발사대, C 모래폭풍. 지구 출신인 나는 다시 느려지고 대시 금지예요' },
-      { k: 'socket', n: '제도 카드 = 문제를 끄는 열쇠', d: '오더가 다섯 문제를 다시 켰어요. 원칙 단말기의 잠금을 부수면 카드가 꽂히고, 그 문제만 꺼져요' },
+      { k: 'socket', n: '근거로 카드 꽂기', d: '단말기의 잠금을 부수면 근거 구슬 3개가 나와요. 그 조항을 뒷받침하는 기록에 닿아야 카드가 꽂히고 문제가 꺼져요 (틀리면 반격)' },
       { k: 'charter', n: '다섯 조항 → 헌장 문', d: '카드 5장을 모두 꽂으면 헌장 문이 열려요. 꽂을 때마다 그 스테이지 사람이 동료가 돼요' }
     ]
   };
@@ -1736,8 +1761,8 @@ function layoutStage6() {
     wall('b' + i + 'd', lg + gw / 2, y, EX1 - lg - gw / 2, 18, ['k2'], { barrier: true, soft: true });
     L.barGaps.push({ x: lg, y: y + 9, w: gw, wall: 'b' + i + 'c' }, { x: sg, y: y + 9, w: gw, wall: 'b' + i + 'a' });
   });
-  sock('k1', 1270, 4600, 1, 'lane', 'civil1964', 300, { ally: 3, join: '이제 같은 길이야!', offText: '분리선이 꺼졌어요. 대시도 쓸 수 있어요' });
-  sock('k2', 430, 5470, 2, 'bar', 'women', 300, { ally: 1, join: '같이 달리자!', offText: '출전 금지 차단막이 열렸어요' });
+  sock('k1', 1270, 4600, 1, 'lane', 'civil1964', 360, { ally: 3, join: '이제 같은 길이야!', offText: '분리선이 꺼졌어요. 대시도 쓸 수 있어요' });
+  sock('k2', 430, 5470, 2, 'bar', 'women', 360, { ally: 1, join: '같이 달리자!', offText: '출전 금지 차단막이 열렸어요' });
   wall('wC', 70, 4400, 1460, 16, ['k1', 'k2'], { quiet: true });
   // B: 벨트 4줄(끝에 압착기), 양쪽 벽의 발사대, 잠긴 쉼터
   sock('k3', 360, 2850, 3, 'belt', 'ilo', 700, { ally: 2, join: '퇴근! 같이 가요!', offText: '벨트가 멈추고 쉼터가 열렸어요' });
@@ -1752,13 +1777,13 @@ function layoutStage6() {
   wall('charter', 560, 744, 480, 16, ['k1', 'k2', 'k3', 'k4', 'k5'], { charter: true, soft: true, divider: true });
   L.zones = [
     { y0: 4416, y1: 6100, exit: 'wC', check: { x: 1270, y: 5980 }, label: 'A 구역 · 분리 회랑', xr: [EX0 + 40, EX1 - 40],
-      pool: ['drone', 'chaser', 'drone'], max: 5, every: 3.6,
+      pool: ['drone', 'chaser', 'drone'], max: 6, every: 3.0,
       initial: [['drone', 1150, 5450], ['drone', 1420, 5100], ['chaser', 1300, 4720], ['turret', 1460, 4560], ['drone', 600, 4700], ['chaser', 300, 5100], ['turret', 160, 5560]] },
     { y0: 2216, y1: 4400, exit: 'wB', check: { x: 800, y: 4340 }, label: 'B 구역 · 가동 층',
-      pool: ['drone', 'chaser', 'drone'], max: 6, every: 3.0,
+      pool: ['drone', 'chaser', 'guard'], max: 7, every: 2.6,
       initial: [['drone', 600, 3950], ['chaser', 1000, 3900], ['turret', 1100, 3300], ['guard', 560, 2880], ['drone', 800, 3000], ['turret', 450, 2420], ['chaser', 1150, 2380]] },
     { y0: 812, y1: 2200, exit: 'wA', check: { x: 800, y: 2140 }, label: 'C 구역 · 코어 입구',
-      pool: ['drone', 'chaser', 'drone'], max: 6, every: 3.2,
+      pool: ['drone', 'chaser', 'guard'], max: 7, every: 2.8,
       initial: [['turret', 230, 1060], ['turret', 1370, 1060], ['guard', 560, 1400], ['guard', 1040, 1400], ['drone', 480, 1800], ['chaser', 1120, 1700], ['drone', 800, 1950]] }
   ];
   L.chips = [];
@@ -1957,7 +1982,7 @@ function newRun(stageId, opts) {
   G.work = L.work ? { n: 0, carry: false, done: false } : null; G.shiftH = 0; G.nightA = 0; G.bellK = 3;
   G.shells = []; G.residualOrb = null; G.armsHits = 0;
   G.arms = L.armsRace ? { a: L.armsRace.start, b: L.armsRace.start } : null; G.armsT = L.armsRace ? L.armsRace.every : 0; G.armsFlash = { a: 0, b: 0 }; G.armsFollow = null;
-  G.domes = 0; G.water = L.water0 || 0; G.lakeFill = 0; G.off = {}; G.sockets = 0; G.cardFly = null;
+  G.domes = 0; G.water = L.water0 || 0; G.lakeFill = 0; G.off = {}; G.sockets = 0; G.cardFly = null; G.sockOrbs = []; G.sockOpen = null;
   G.storm = L.storm ? { k: L.storm.zone == null ? 1 : 0, r: L.storm.r0 } : null;
   G.gust = L.storm ? { phase: 'wait', t: 6, dir: 1 } : null;
   G.restricted = !!L.restrict; G.npcs = L.npcs || []; G.freeT = -99;
@@ -2176,7 +2201,7 @@ function respawn() {
 function findTarget(x, y, range) {
   let best = null, bd = range;
   for (const e of G.enemies) { if (e.dead || e.spawnT > 0) continue; const d = dist(x, y, e.x, e.y) - e.r; if (d < bd && !segBlocked(x, y, e.x, e.y)) { bd = d; best = e; } }
-  for (const g of G.gens) { if (!g.alive || genShielded(g) || g.tower) continue; const d = dist(x, y, g.x, g.y) - g.r; if (d < bd && !segBlocked(x, y, g.x, g.y)) { bd = d; best = g; } }
+  for (const g of G.gens) { if (!g.alive || genShielded(g) || g.tower || g.open) continue; const d = dist(x, y, g.x, g.y) - g.r; if (d < bd && !segBlocked(x, y, g.x, g.y)) { bd = d; best = g; } }
   const b = G.boss;
   if (b && !b.dead && b.dying <= 0) { const d = dist(x, y, b.x, b.y) - 70; if (d < bd) { best = b; } }
   if (!best) for (const l of G.L.launchers || []) { if (l.folded) continue; const d = dist(x, y, l.x, l.y) - 30; if (d < Math.min(range, 250) && d < bd) { bd = d; best = l; } }
@@ -2256,7 +2281,7 @@ function startBoss() {
   G.arenaLock = true; G.checkpoint = { x: 800, y: 620 }; G.cam.x = G.L.arena.x; G.cam.y = G.L.arena.y;
   G.enemies.forEach(e => { if (!e.dead) { e.dead = true; burst(e.x, e.y, C.amber, 6, 150); } });
   G.eB = [];
-  const hp = 4000 * G.hpMul;
+  const hp = (G.L.bossHp || 4000) * G.hpMul;
   G.boss = { def: G.def.boss, x: 800, y: 290, hp, maxHp: hp, round: 0, shield: true, stun: 0, t: 0, pat: null, patT: 2.2,
              orbs: [], orbT: 1.6, orbsUp: false, dying: 0, dead: false, flash: 0, lasers: [], breakT: 0 };
   G.shells = []; if (G.L.bossPods) G.boss.pods = G.L.bossPods;
@@ -2290,7 +2315,12 @@ function spawnOrbs(b) {
   // 라운드마다 주장을 크게 보여 주고 멈춘다. 「반박하러 가기」를 누르면 다시 시작
   G.mode = 'claim'; G.claimT = 0; G.eB = []; ui.focus = 0;
 }
-function endRebutCard() { if (G.mode !== 'rebut' || G.rebutT < 1) return; G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 1); }
+function endRebutCard() {
+  if (G.mode !== 'rebut' || G.rebutT < 1) return;
+  G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 1);
+  const sg = G.rebut && G.rebut.sock; G.rebut = null;
+  if (sg) killGen(sg);
+}
 function drawRebutCard() {
   modalStart(); dim(0.7);
   const r = G.rebut, t = G.rebutT, pop = Math.min(1, t * 5);
@@ -2299,11 +2329,11 @@ function drawRebutCard() {
   ctx.save(); ctx.globalAlpha = pop;
   panel(x, y, w, h, { fill: 'rgba(16,40,38,0.97)', stroke: C.good, r: 26, lw: 5 });
   const sc = 1 + Math.max(0, 0.3 - t) * 1.5;
-  ctx.save(); ctx.translate(W / 2, y + 62); ctx.scale(sc, sc); txt('반박 성공!', 0, 0, 66, C.good, 'center', { weight: 900, stroke: C.ink, sw: 10 }); ctx.restore();
+  ctx.save(); ctx.translate(W / 2, y + 62); ctx.scale(sc, sc); txt(r.sock ? '근거 확인!' : '반박 성공!', 0, 0, 66, C.good, 'center', { weight: 900, stroke: C.ink, sw: 10 }); ctx.restore();
   const cl = '「' + r.claim + '」';
   setFont(26, 600); const cw = Math.min(ctx.measureText(cl).width, w - 80);
-  txt(cl, W / 2, y + 126, 26, '#c9c2ef', 'center', { weight: 600 });
-  ctx.strokeStyle = C.bad; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(W / 2 - cw / 2 - 6, y + 128); ctx.lineTo(W / 2 + cw / 2 + 6, y + 128); ctx.stroke();
+  txt(cl, W / 2, y + 126, 26, r.sock ? C.amberL : '#c9c2ef', 'center', { weight: 600 });
+  if (!r.sock) { ctx.strokeStyle = C.bad; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(W / 2 - cw / 2 - 6, y + 128); ctx.lineTo(W / 2 + cw / 2 + 6, y + 128); ctx.stroke(); }
   const cx = x + 190, cy = y + 150 + rowH / 2 - 26, rad = 118;
   ctx.save(); circle(cx, cy, rad); ctx.clip();
   const img = photoOf(r.opt);
@@ -2314,9 +2344,9 @@ function drawRebutCard() {
   txt('증거 · ' + r.opt.label, cx, cy + rad + 32, 26, C.cream, 'center', { weight: 900 });
   const tx = x + 380, ty = y + 150 + rowH / 2 - (gl.length * 52 + 60) / 2 + 20;
   gl.forEach((l, i) => txt(l, tx, ty + i * 52, 40, C.cream, 'left', { weight: 900 }));
-  txt('방어막이 깨졌어요! 지금 보스를 공격하세요', tx, ty + gl.length * 52 + 26, 26, C.tealL, 'left', { weight: 600 });
+  txt(r.sock ? '제도 카드를 꽂아요! 이 문제가 꺼져요' : '방어막이 깨졌어요! 지금 보스를 공격하세요', tx, ty + gl.length * 52 + 26, 26, C.tealL, 'left', { weight: 600 });
   ctx.restore();
-  if (t > 1) button(W / 2 - 170, y + h - 86, 340, 64, '공격하러 가기!', () => endRebutCard(), { size: 30 });
+  if (t > 1) button(W / 2 - 170, y + h - 86, 340, 64, r.sock ? '카드 꽂기!' : '공격하러 가기!', () => endRebutCard(), { size: 30 });
 }
 function startRebut() { if (G.mode !== 'claim' || G.claimT < 2.6) return; G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 1); }
 function drawClaimCard() {
@@ -2573,6 +2603,7 @@ function updateStage(dt) {
   } else if (G.mode === 'record') { G.recT += dt; if (G.recT >= readSec()) menuNav(); }
   else if (G.mode === 'claim') { G.claimT += dt; if (G.claimT < 2 && G.claimT > 0.6 && (hit('Enter') || hit('Space') || taps.length)) G.claimT = 2; else if (G.claimT > 2.6) menuNav(); }
   else if (G.mode === 'rebut') { G.rebutT += dt; if (G.rebutT > 1) menuNav(); }
+  else if (G.mode === 'sockClaim') { G.claimT += dt; if (G.claimT > 1.5) menuNav(); }
   else if (G.mode === 'down') { G.downT += dt; updateFx(dt); if (G.downT >= reviveSec()) menuNav(); }
   else if (G.mode === 'clear') { G.clearT += dt; updateFx(dt); if (G.clearT > (G.clearStep === 0 ? (G.def.change && G.def.change.mars2 ? 4.2 : 2) : 1.2)) menuNav(); }
   else if (G.mode === 'pause' || G.mode === 'gameover') menuNav();
@@ -2754,7 +2785,7 @@ function updatePlay(dt) {
     for (const e of G.enemies) { if (e.dead || e.spawnT > 0) continue; if (dist(b.x, b.y, e.x, e.y) < e.r + b.r) { damageEnemy(e, b.dmg); b.life = 0; burst(b.x, b.y, C.tealL, 3, 100, 3); break; } }
     if (b.life <= 0) continue;
     for (const g of G.gens) {
-      if (!g.alive || g.tower) continue;
+      if (!g.alive || g.tower || g.open) continue;
       if (dist(b.x, b.y, g.x, g.y - 22) < g.r + b.r) { damageGen(g, b.dmg); b.life = 0; burst(b.x, b.y, C.amber, 3, 100, 3); break; }
     }
     if (b.life <= 0) continue;
@@ -2847,7 +2878,7 @@ function updatePlay(dt) {
   if (rg && rg.active && recordsLeft() === 0) { rg.active = false; rg.fade = 1; banner('기록 문이 열렸어요!', '기록을 모두 모았어요. 이제 보스 구역으로 들어가요', C.tealL, 3.5); Sound.play('good'); }
   if (!G.boss && !wallById('wA').active && P.y < 690 && !P.dead) startBoss();
   if (G.boss && !G.boss.dead) updateBoss(dt);
-  updateRace(dt); updateBoosts(dt); updateRunners(dt); updateFactory(dt); updateArms(dt); updateStorm(dt); updateCardFly(dt);
+  updateRace(dt); updateBoosts(dt); updateRunners(dt); updateFactory(dt); updateArms(dt); updateStorm(dt); updateCardFly(dt); updateSockOrbs(dt);
   updateCoach(dt); updateTips(dt); updateNpcs(dt);
   updateFx(dt);
   // 카메라
@@ -2870,10 +2901,15 @@ function unityNeed() {
   return G.gens.find(g => w.gens.includes(g.id) && genShielded(g)) || null;
 }
 function damageGen(g, dmg) {
-  if (!g.alive) return;
+  if (!g.alive || g.open) return;
   if (genShielded(g)) { if (G.t - (G.shieldWarnT || -9) > 1.6) { G.shieldWarnT = G.t; addText(g.x, g.y - 150, '혼자서는 못 멈춰요!', C.bad, 20); } return; }
   g.hp -= dmg; g.hitT = 0.1;
   if (g.hp > 0) return;
+  // 종장: 단말기 잠금이 풀리면 바로 꽂히지 않고, 조항의 근거가 되는 기록 구슬을 골라야 한다
+  if (g.socket && !g.proven) { openSocket(g); return; }
+  killGen(g);
+}
+function killGen(g) {
   g.alive = false; G.shake = Math.max(G.shake, 10);
   if (g.tower) onTowerLit(g);
   if (g.valve) onValveClosed(g);
@@ -3238,6 +3274,103 @@ function onSocket(g) {
   banner('제' + g.socket + '조 입력! 「' + card.name + '」', articleOf(g.socket).text + ' → ' + (g.offText || '') + (opened ? ' · 위쪽 문이 열렸어요 ▲' : ''), C.tealL, 4.4);
   if (!G.tipsSeen.ally) showAllyTip();
 }
+// 단말기 둘레에서 근거 구슬이 떠다닐 칸: 아직 켜진 벽(분리선·차단막·구역 문)과 바깥 벽 안쪽으로만
+function sockCell(g) {
+  let y0 = 0, y1 = G.L.h, x0 = 0, x1 = G.L.w;
+  for (const w of G.walls) {
+    if (!w.active || w.gate || w.charter) continue;
+    if (w.w > w.h) { if (g.x > w.x && g.x < w.x + w.w) { if (w.y < g.y) y0 = Math.max(y0, w.y + w.h); else y1 = Math.min(y1, w.y); } }
+    else if (g.y > w.y && g.y < w.y + w.h) { if (w.x < g.x) x0 = Math.max(x0, w.x + w.w); else x1 = Math.min(x1, w.x); }
+  }
+  for (const sd of G.L.solids) if ((sd.space || sd.fwall || sd.cliff) && g.y > sd.y && g.y < sd.y + sd.h) { if (sd.x + sd.w <= g.x) x0 = Math.max(x0, sd.x + sd.w); else if (sd.x >= g.x) x1 = Math.min(x1, sd.x); }
+  return { x0: x0 + 60, x1: x1 - 60, y0: y0 + 60, y1: y1 - 70 };
+}
+function openSocket(g) {
+  const ev = ((G.def.evidence || []).find(e => e.article === g.socket) || {}).options;
+  if (!ev) { g.proven = true; killGen(g); return; }
+  g.hp = 0; g.open = true; G.sockOpen = g;
+  burst(g.x, g.y - 50, C.mustard, 26, 260); G.shake = Math.max(G.shake, 8); Sound.play('boom');
+  // 오더가 막으러 드론을 보낸다
+  for (let k = 0; k < 2; k++) spawnEnemy('chaser', g.x + rand(-240, 240), g.y + rand(-200, -120), G.zoneIdx);
+  const cell = sockCell(g), P = G.P, placed = [];
+  G.sockOrbs = [];
+  shuffle(ev).forEach((opt, i) => {
+    let x, y, tries = 0;
+    do {
+      const a = rand(0, TAU), d = rand(150, 240);
+      x = clamp(g.x + Math.cos(a) * d, cell.x0, cell.x1); y = clamp(g.y - 30 + Math.sin(a) * d * 0.8, cell.y0, cell.y1); tries++;
+    } while (tries < 60 && (placed.some(p => dist(p.x, p.y, x, y) < 150) || dist(x, y, g.x, g.y) < 110 || dist(x, y, P.x, P.y) < 120 || G.L.solids.some(sd => inRectPad(x, y, sd, 40))));
+    placed.push({ x, y });
+    const ang = rand(0, TAU);
+    G.sockOrbs.push({ opt, g, cell, x, y, vx: Math.cos(ang) * 32, vy: Math.sin(ang) * 32, r: 40, t: rand(0, 5), born: 0 });
+  });
+  G.mode = 'sockClaim'; G.claimT = 0; ui.focus = 0;
+}
+function updateSockOrbs(dt) {
+  if (!G.sockOrbs.length) return;
+  const P = G.P;
+  for (const o of G.sockOrbs) {
+    o.t += dt; o.born += dt; o.x += o.vx * dt; o.y += o.vy * dt;
+    const c = o.cell, g = o.g;
+    if (o.x < c.x0 || o.x > c.x1) { o.vx *= -1; o.x = clamp(o.x, c.x0, c.x1); }
+    if (o.y < c.y0 || o.y > c.y1) { o.vy *= -1; o.y = clamp(o.y, c.y0, c.y1); }
+    if (dist(o.x, o.y, g.x, g.y) > 260) { const a = Math.atan2(g.y - o.y, g.x - o.x); o.vx = Math.cos(a) * 32; o.vy = Math.sin(a) * 32; }
+  }
+  if (!P.dead) for (const o of G.sockOrbs.slice()) if (o.born > 0.45 && dist(o.x, o.y, P.x, P.y) < o.r + P.r) { resolveSockOrb(o); break; }
+}
+function resolveSockOrb(o) {
+  const g = o.g, P = G.P;
+  if (o.opt.correct) {
+    G.stats.right++; gainXp(20);
+    G.sockOrbs = []; G.sockOpen = null; g.proven = true; g.open = false;
+    burst(o.x, o.y, C.mustard, 20, 260); burst(g.x, g.y - 40, C.tealL, 24, 260);
+    G.rebut = { opt: o.opt, claim: '제' + g.socket + '조 ' + articleOf(g.socket).text, sock: g }; G.rebutT = 0; G.mode = 'rebut'; ui.focus = 0;
+    Sound.play('good');
+  } else {
+    G.stats.wrong++;
+    G.sockOrbs = G.sockOrbs.filter(x => x !== o);
+    burst(o.x, o.y, C.bad, 20, 260);
+    P.inv = 0; hurtPlayer(10, o.x, o.y, true);
+    for (let k = 0; k < 6; k++) enemyShot(o.x, o.y, k / 6 * TAU, 100, 7);
+    P.inv = 1.0;
+    spawnEnemy('chaser', g.x + rand(-200, 200), g.y - 160, G.zoneIdx);
+    banner('근거가 아니에요!', o.opt.why || '', C.bad, 5.5);
+    Sound.play('bad');
+  }
+}
+function drawSockOrbs() {
+  if (!G.sockOrbs || !G.sockOrbs.length) return;
+  const g = G.sockOrbs[0].g;
+  ctx.save(); ctx.setLineDash([10, 10]); ctx.lineDashOffset = -G.t * 30; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(247,197,72,0.55)';
+  for (const o of G.sockOrbs) { ctx.beginPath(); ctx.moveTo(g.x, g.y - 60); ctx.lineTo(o.x, o.y); ctx.stroke(); }
+  ctx.restore();
+  G.sockOrbs.forEach(drawOrb);
+}
+// 잠금이 풀린 단말기: 조항을 크게 보여 주고, 근거 구슬 3개를 미리 보여 준다
+function drawSockClaim() {
+  modalStart(); dim(0.74);
+  const g = G.sockOpen, t = G.claimT, pop = Math.min(1, t * 4); if (!g) return;
+  ctx.save(); ctx.globalAlpha = pop;
+  panel(150, 70, W - 300, 560, { fill: 'rgba(24,21,54,0.97)', stroke: C.mustard, r: 26, lw: 5 });
+  txt('제' + g.socket + '조 단말기 · 잠금 해제!', W / 2, 122, 30, C.tealL, 'center', { weight: 900, stroke: C.ink, sw: 6 });
+  txt('카드를 꽂으려면 이 조항의 근거가 필요해요', W / 2, 170, 22, C.cream, 'center', { weight: 600 });
+  const ql = wrap('제' + g.socket + '조  ' + articleOf(g.socket).text, 840, 40, 900);
+  rr(220, 204, W - 440, 40 + ql.length * 52, 20); ctx.fillStyle = 'rgba(60,46,20,0.95)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.mustard; ctx.stroke();
+  ql.forEach((l, i) => txt(l, W / 2, 248 + i * 52, 40, C.amberL, 'center', { weight: 900, stroke: C.ink, sw: 7 }));
+  const y2 = 260 + ql.length * 52 + 30;
+  txt('이 조항을 뒷받침하는 기록 구슬에 몸으로 닿으세요   (틀린 구슬은 반격!)', W / 2, y2, 21, C.cream, 'center', { weight: 600 });
+  G.sockOrbs.forEach((o, i) => {
+    const cx = W / 2 + (i - (G.sockOrbs.length - 1) / 2) * 290 - 50, cy = y2 + 70;
+    ctx.save(); circle(cx, cy, 34); ctx.clip();
+    const img = photoOf(o.opt);
+    if (img) drawCover(img, cx - 34, cy - 34, 68, 68); else { ctx.fillStyle = '#3b3570'; ctx.fillRect(cx - 34, cy - 34, 68, 68); }
+    ctx.restore();
+    ctx.lineWidth = 3; ctx.strokeStyle = C.cream; circle(cx, cy, 34); ctx.stroke();
+    txt(o.opt.label, cx + 44, cy, 20, C.cream, 'left', { weight: 900 });
+  });
+  ctx.restore();
+  if (t > 1.5) button(W / 2 - 170, 548, 340, 62, '근거 찾으러 가기!', () => { if (G.mode === 'sockClaim') { G.mode = 'play'; G.P.inv = Math.max(G.P.inv, 1); } }, { size: 28 });
+}
 function updateCardFly(dt) { const f = G.cardFly; if (!f) return; f.t += dt; if (f.t > 0.75) G.cardFly = null; }
 // 작은 제도 카드(단말기에 꽂힌 것, 날아가는 것)
 function drawMiniCard(x, y, s, n) {
@@ -3271,6 +3404,10 @@ function drawSocket(g) {
     if (k > 0) { ctx.globalAlpha = k; drawMiniCard(0, -112, 0.9, n); ctx.globalAlpha = 1; }
     ctx.fillStyle = C.good; circle(0, -26, 9); ctx.fill(); ctx.lineWidth = 2.4; ctx.stroke();
     ctx.strokeStyle = C.ink; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(-4, -26); ctx.lineTo(-1, -22); ctx.lineTo(5, -30); ctx.stroke();
+  } else if (g.open) {
+    // 잠금이 풀리고 근거 구슬을 기다리는 중
+    ctx.strokeStyle = 'rgba(247,197,72,' + (0.55 + 0.35 * Math.sin(G.t * 6)).toFixed(3) + ')'; ctx.lineWidth = 5; circle(0, -44, 60); ctx.stroke();
+    txt('?', 0, -24, 26, C.mustard, 'center', { weight: 900, stroke: C.ink, sw: 5 });
   } else {
     const pulse = 1 + Math.sin(G.t * 5 + g.x) * 0.06;
     ctx.strokeStyle = 'rgba(255,177,46,0.9)'; ctx.lineWidth = 4; ctx.setLineDash([10, 7]); ctx.lineDashOffset = -G.t * 25; circle(0, -44, 58 * pulse); ctx.stroke(); ctx.setLineDash([]);
@@ -3280,7 +3417,7 @@ function drawSocket(g) {
     ctx.fillStyle = C.amber; rr(-40, -116, 80 * Math.max(0, g.hp / g.maxHp), 9, 4); ctx.fill();
   }
   if (g.icon) { ctx.restore(); return; }
-  const label = on ? '제' + n + '조 입력 ✓ 「' + card.name + '」' : g.name + ' · 「' + card.name + '」 카드';
+  const label = on ? '제' + n + '조 입력 ✓ 「' + card.name + '」' : g.open ? g.name + ' · 근거 구슬을 찾아요' : g.name + ' · 「' + card.name + '」 카드';
   setFont(14, 600); const tw = ctx.measureText(label).width + 18, ly = on ? -158 : -140;
   rr(-tw / 2, ly - 10, tw, 20, 10); ctx.fillStyle = on ? 'rgba(20,70,60,0.95)' : target ? C.mustard : 'rgba(27,24,56,0.88)'; ctx.fill();
   txt(label, 0, ly, 14, on ? '#c8ffe4' : target ? C.ink : C.cream, 'center', { weight: 600 });
@@ -3436,6 +3573,7 @@ function drawStage() {
   actors.sort((a, b) => a.y - b.y).forEach(a => a.f());
   drawGuide();
   if (G.boss && !G.boss.dead) { drawLasers(G.boss); G.boss.orbs.forEach(drawOrb); }
+  drawSockOrbs();
   for (const b of G.pB) drawWaveShot(b);
   drawCardFly();
   for (const s of G.shells || []) if (s.t >= 0 && vis(s.x, s.y, 120)) drawShell(s);
@@ -3464,6 +3602,7 @@ function drawStage() {
   else if (G.mode === 'record') drawRecordCard();
   else if (G.mode === 'claim') drawClaimCard();
   else if (G.mode === 'rebut') drawRebutCard();
+  else if (G.mode === 'sockClaim') drawSockClaim();
   else if (G.mode === 'down') drawDown();
   else if (G.mode === 'levelup') drawLevelUp();
   else if (G.mode === 'pause') drawPause();
@@ -4234,6 +4373,7 @@ function drawStorm() {
   for (const b of G.eB) { if (b.x < cam.x - 20 || b.x > cam.x + W + 20 || b.y < cam.y - 20 || b.y > cam.y + H + 20) continue; ctx.fillStyle = C.orange; circle(b.x, b.y, b.r); ctx.fill(); ctx.fillStyle = '#fff4c8'; circle(b.x, b.y, b.r * 0.5); ctx.fill(); }
   for (const s of G.shells || []) if (s.t >= 0) drawShell(s);
   if (G.boss && !G.boss.dead) { drawLasers(G.boss); G.boss.orbs.forEach(drawOrb); }
+  drawSockOrbs();
   ctx.restore();
   if (G.mode !== 'play' || G.boss) return;
   // 신호: 화면 안이지만 모래에 가린 목표(밸브·발생기)와 기록 칩
@@ -4838,6 +4978,7 @@ function drawHUD() {
   let obj = '';
   if (G.boss && !G.boss.dead) obj = '';
   else if (workOn()) obj = '지금 할 일 ▶ ' + (G.work.carry ? '산소 통을 벨트에 올리기' : '산소 통 들기') + ' (' + G.work.n + '/' + G.L.work.need + ')';
+  else if (G.sockOrbs && G.sockOrbs.length) obj = '지금 할 일 ▶ 제' + G.sockOrbs[0].g.socket + '조의 근거 구슬에 닿기 (틀리면 반격!)';
   else if (G.coach && G.coach.steps[G.coach.step]) obj = '지금 할 일 ▶ ' + G.coach.steps[G.coach.step].title;
   else if (G.race && G.race.on) obj = '지금 할 일 ▶ 차단막의 틈으로 달리기! 뒤처지면 다쳐요 ▲';
   else if (unityNeed()) obj = '지금 할 일 ▶ 일하는 정착민 풀어 주기 (' + G.settlers.length + '/' + unityNeed().needAllies + ')';
@@ -4851,7 +4992,8 @@ function drawHUD() {
     const towersW = w.gens.length && w.gens.every(id => G.gens.find(g => g.id === id).tower);
     const valvesW = w.gens.length && w.gens.every(id => G.gens.find(g => g.id === id).valve);
     const sockLeft = w.gens.map(id => G.gens.find(g => g.id === id)).filter(g => g.alive && g.socket);
-    if (sockLeft.length) obj = sockLeft.length === 1 ? '지금 할 일 ▶ ' + sockLeft[0].name + ' 잠금 부수기 (카드 꽂기)' : '지금 할 일 ▶ 단말기 ' + sockLeft.length + '개 잠금 부수기 (카드 꽂기)';
+    if (G.sockOrbs.length) obj = '지금 할 일 ▶ 제' + G.sockOrbs[0].g.socket + '조의 근거 구슬에 닿기 (틀리면 반격!)';
+    else if (sockLeft.length) obj = sockLeft.length === 1 ? '지금 할 일 ▶ ' + sockLeft[0].name + ' 잠금 부수기 (카드 꽂기)' : '지금 할 일 ▶ 단말기 ' + sockLeft.length + '개 잠금 부수기 (카드 꽂기)';
     else if (valvesW && left) obj = w.gens.length === 1 && named ? '지금 할 일 ▶ ' + named.name + ' 잠그기 (부수면 잠겨요)' : '지금 할 일 ▶ 다른 돔 밸브 잠그기 (함께 지키는 돔 ' + G.domes + '/' + G.L.storm.domes + ')';
     else if (towersW && left) obj = '지금 할 일 ▶ 연대 송신탑 켜기 · 원 안에서 버티기 (' + (w.gens.length - left) + '/' + w.gens.length + ')';
     else obj = named && left === 1 ? '지금 할 일 ▶ ' + named.name + ' 부수기' : left ? '지금 할 일 ▶ ' + (named && w.gens.map(id => G.gens.find(g => g.id === id)).filter(g => g.alive).every(g => g.name === named.name) ? named.name : '발생기') + ' ' + left + '개 부수기' : ((chipsHere || (G.zoneIdx === G.zones.length - 1 && recordGateNeeded())) ? chipsObj : '지금 할 일 ▶ 위로 나아가기 ▲');
@@ -5139,12 +5281,16 @@ function drawBossIntro() {
   else { ctx.save(); ctx.translate(950, 380); ctx.scale(1.6, 1.6); drawBoss1Code({ t: G.t, flash: 0, pat: null, y: 0, x: 0 }, { x: 0, y: 200 }); ctx.restore(); }
   ctx.restore();
   ctx.save(); ctx.globalAlpha = Math.min(1, Math.max(0, (t - 0.25) * 3));
-  txt(G.L.finalBoss ? 'FINAL BOSS · 정착촌 AI' : 'BOSS · 오더의 하위 모듈', 90, 250, 26, C.amberL, 'left', { weight: 900, stroke: C.ink, sw: 6 });
-  txt(b.def.name, 90, 310, 64, C.cream, 'left', { weight: 900, stroke: C.ink, sw: 10 });
-  para('「' + b.def.intro + '」', 92, 390, 560, 28, C.cream, 40, { stroke: C.ink, sw: 6 });
-  ['① 보스가 주장을 외치면 방어막이 생겨요', '② 주장이 틀렸다는 증거 구슬에 몸으로 닿아요', '③ 방어막이 깨지면 공격! (틀린 구슬은 반격)', "④ 탄이 많으면 '파동' 버튼(키보드 E)으로 지워요"].forEach((l, i) =>
-    txt(l, 92, 444 + i * 34, 22, C.amberL, 'left', { stroke: C.ink, sw: 5 }));
-  if (t > 0.7) txt('화면을 눌러 시작 (키보드: Enter)', 92, 590, 17, C.cream, 'left', { stroke: C.ink, sw: 4 });
+  // 글 묶음의 높이를 먼저 재고, 주황 띠(왼쪽 위아래 약 166~606)의 가운데에 놓는다. 주장이 두 줄이 되어도 겹치지 않는다
+  const lines = wrap('「' + b.def.intro + '」', 560, 28, 600);
+  const guides = ['① 보스가 주장을 외치면 방어막이 생겨요', '② 주장이 틀렸다는 증거 구슬에 몸으로 닿아요', '③ 방어막이 깨지면 공격! (틀린 구슬은 반격)', "④ 탄이 많으면 '파동' 버튼(키보드 E)으로 지워요"];
+  const hTot = 34 + 8 + 66 + 16 + lines.length * 38 + 18 + guides.length * 32 + 14 + 22;
+  let y = 388 - hTot / 2;
+  txt(G.L.finalBoss ? 'FINAL BOSS · 정착촌 AI' : 'BOSS · 오더의 하위 모듈', 90, y + 17, 26, C.amberL, 'left', { weight: 900, stroke: C.ink, sw: 6 }); y += 34 + 8;
+  txt(b.def.name, 90, y + 33, 64, C.cream, 'left', { weight: 900, stroke: C.ink, sw: 10 }); y += 66 + 16;
+  lines.forEach((l, i) => txt(l, 92, y + 19 + i * 38, 28, C.cream, 'left', { stroke: C.ink, sw: 6 })); y += lines.length * 38 + 18;
+  guides.forEach((l, i) => txt(l, 92, y + 16 + i * 32, 22, C.amberL, 'left', { stroke: C.ink, sw: 5 })); y += guides.length * 32 + 14;
+  if (t > 0.7) txt('화면을 눌러 시작 (키보드: Enter)', 92, y + 11, 17, C.cream, 'left', { stroke: C.ink, sw: 4 });
   ctx.restore();
 }
 function recordLayout(r, ds) {
@@ -5370,7 +5516,8 @@ if (DEBUG) {
     tp(x, y) { G.P.x = x; G.P.y = y; },
     god(on) { G.god = on !== false; },
     xp(n) { gainXp(n); },
-    killGens(ids) { G.gens.forEach(g => { if (!ids || ids.includes(g.id)) { g.needAllies = 0; damageGen(g, 9999); } }); },
+    killGens(ids) { G.gens.forEach(g => { if (!ids || ids.includes(g.id)) { g.needAllies = 0; g.proven = true; g.open = false; damageGen(g, 9999); } }); },
+    openSock(id) { const g = G.gens.find(x => x.id === id); g.hp = 1; damageGen(g, 9999); },
     bossHp(f) { const b = G.boss; b.hp = b.maxHp * f; },
     down() { playerDown(); },
     guide() { const g = routeGoal(); return g ? { x: g.x, y: g.y } : null; },

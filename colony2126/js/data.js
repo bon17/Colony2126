@@ -527,6 +527,30 @@ window.COLONY_DATA = {
         { img: 's6c', text: '하지만 우리에겐 지구 사람들이 만든 {약속} 다섯 개가 있어요. 제도 카드로 오더의 원칙을 바꾸러 가요!' }
       ],
       slogans: [ ['오더 코어', '효율이 모든 것에 앞선다'], ['모듈 재가동', '분리 · 출전 금지 · 24시간 가동'], ['원칙은 하나', '사람보다 효율'] ],
+      /* 원칙 단말기: 잠금을 부수면 그 조항의 근거가 되는 기록 구슬 3개가 나온다. 맞는 구슬에 닿아야 제도 카드가 꽂힌다.
+         정답은 그 조항을 뒷받침하는 기록, 오답은 문제(차별·전쟁 등)를 보여 주는 기록이나 다른 운동의 기록 */
+      evidence: [
+        { article: 1, options: [
+          { record: 'r1_1994', label: '1994 첫 선거', correct: true, good: '모든 인종이 함께 투표했다. 태어난 곳으로 나누지 않는다는 제1조의 근거!' },
+          { record: 'r1_sign', label: '인종 분리 표지판', correct: false, why: '사람을 나누던 때의 기록이야. 나누지 않게 된 근거가 필요해.' },
+          { record: 'r3_mayday', label: '1889 메이데이', correct: false, why: '노동자들의 날이야. 제1조와는 다른 이야기야.' } ] },
+        { article: 2, options: [
+          { record: 'r2_1971', label: '1971 평등 행진', correct: true, good: '교육·취업·임금의 평등을 요구하며 행진했다. 제2조의 근거!' },
+          { record: 'r1_beach', label: '백인 전용 해변', correct: false, why: '차별하던 때의 기록이야. 평등을 요구한 근거가 필요해.' },
+          { record: 'r5_ships', label: '바닥에 남은 배', correct: false, why: '호수가 말라 버린 기록이야. 제2조와는 다른 이야기야.' } ] },
+        { article: 3, options: [
+          { record: 'r3_1886', label: '1886 시카고 파업', correct: true, good: '하루 8시간 노동을 요구한 파업. 일 8·쉼 8이라는 제3조의 근거!' },
+          { record: 'r3_child', label: '방직 공장의 아이', correct: false, why: '오래 일하던 문제의 기록이야. 8시간을 요구한 근거가 필요해.' },
+          { record: 'r4_iraq', label: '2003 전쟁 반대 운동', correct: false, why: '전쟁에 반대한 기록이야. 제3조와는 다른 이야기야.' } ] },
+        { article: 4, options: [
+          { record: 'r4_nuclear', label: '핵 실험 반대 시위', correct: true, good: '대량 살상 무기에 반대한 시민들. 무기를 늘리지 않는다는 제4조의 근거!' },
+          { record: 'r4_vietnam', label: '베트남 전쟁', correct: false, why: '전쟁이 일어난 기록이야. 무기를 막으려 한 근거가 필요해.' },
+          { record: 'r2_boston', label: '1967 보스턴 마라톤', correct: false, why: '마라톤 완주 기록이야. 제4조와는 다른 이야기야.' } ] },
+        { article: 5, options: [
+          { record: 'r5_rio', label: '1992 리우 선언', correct: true, good: '세계 여러 나라가 환경을 함께 지키기로 약속했다. 제5조의 근거!' },
+          { record: 'r5_2008', label: '2008 아랄해', correct: false, why: '호수가 말라붙은 문제의 기록이야. 함께 지키기로 한 근거가 필요해.' },
+          { record: 'r1_king', label: '1963 킹의 연설', correct: false, why: '인종 차별에 맞선 연설이야. 제5조와는 다른 이야기야.' } ] }
+      ],
       boss: {
         name: '오더 본체', img: 'boss_final',
         intro: '원칙은 하나. 사람보다 효율이 중요하다.',
@@ -584,6 +608,9 @@ window.COLONY_DATA = {
 
   /* 엔딩 (종장을 깨면 나온다) */
   ending: {
+    /* 구글 시트로 보내기: 선생님이 만든 Apps Script 웹 앱 주소(https://script.google.com/macros/s/…/exec)를 따옴표 안에 붙여 넣으세요.
+       비워 두면 보내지 않아요. 만드는 법은 저장소의 tools/gas/README.md */
+    sheetUrl: '',
     error: ['오류: 효율만으로는 판단할 수 없습니다.', '효율 외의 원칙이 필요합니다.', '새 원칙을 입력하세요.'],
     /* 재부팅 뒤 스테이지마다 바뀐 모습 (그림: img/after1~after5) */
     reboot: [

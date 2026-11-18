@@ -21,7 +21,7 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     for (const k of want) if (!held.has(k)) { await page.keyboard.down(k); held.add(k); }
   }
   let lastLog = 0, wrongBudget = 0, jitter = 0, shots = [], lastZone = null, zoneT = 0;
-  const stuck = { x: 0, y: 0, t: 0, until: 0, dx: 0 };
+  const stuck = { x: 0, y: 0, t: 0, until: 0, dx: 0 }, sockPick = { id: null, wrong: false, n: 0 };
   const t0 = Date.now();
   while (Date.now() - t0 < 900000) {
     const s = await page.evaluate(() => {
@@ -41,7 +41,8 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
       const shells = (G.shells || []).filter(s => !s.boom && s.t >= 0 && Math.hypot(s.x - P.x, s.y - P.y) < s.r + 30).map(s => ({ x: s.x, y: s.y }));
       const near = G.eB.filter(e => Math.hypot(e.x - P.x, e.y - P.y) < 120).map(e => ({ x: e.x, y: e.y }));
       const barOn = !!(G.L.barGaps && !G.race && G.restricted && !(G.off && G.off.bar));
-      return { barOn, shells, work: !!(G.work && !G.work.done), race: G.race && G.race.on, stage: G.def.id, guide: __colony.guide(), allChips, gateOn: !!(rg && rg.active), restricted: G.restricted, mode: G.mode, time: G.time, P: { x: P.x, y: P.y, hp: P.hp, dead: P.dead }, max: G.st.maxHp, lives: G.lives, lv: G.level, zone: G.zoneIdx, objs, b, near, stats: G.stats, scene: __colony.scene, walls: G.walls.filter(w => w.active).map(w => w.id) };
+      const sorbs = (G.sockOrbs || []).filter(o => o.born > 0.5).map(o => ({ x: o.x, y: o.y, c: !!o.opt.correct, id: o.g.id }));
+      return { barOn, sorbs, shells, work: !!(G.work && !G.work.done), race: G.race && G.race.on, stage: G.def.id, guide: __colony.guide(), allChips, gateOn: !!(rg && rg.active), restricted: G.restricted, mode: G.mode, time: G.time, P: { x: P.x, y: P.y, hp: P.hp, dead: P.dead }, max: G.st.maxHp, lives: G.lives, lv: G.level, zone: G.zoneIdx, objs, b, near, stats: G.stats, scene: __colony.scene, walls: G.walls.filter(w => w.active).map(w => w.id) };
     });
     if (!s) break;
     // 종장은 보스를 반박하면 엔딩 화면으로 넘어간다
@@ -51,6 +52,8 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     if (s.zone !== lastZone && s.mode === 'play') { if (lastZone !== null) console.log('ZONE', ['A', 'B', 'C'][lastZone] || 'boss', (s.time - zoneT).toFixed(0) + 's'); lastZone = s.zone; zoneT = s.time; }
     if (s.mode === 'levelup') { await setKeys(new Set()); await sleep(500); await page.keyboard.press(String(1 + Math.floor(Math.random() * 3)).replace(/^/, 'Digit')); continue; }
     if (s.mode === 'claim') { await setKeys(new Set()); await sleep(2900); await page.keyboard.press('Enter'); continue; }
+    // 종장: 단말기 잠금이 풀리면 근거 카드가 뜬다
+    if (s.mode === 'sockClaim') { await setKeys(new Set()); await sleep(1700); await page.keyboard.press('Enter'); continue; }
     if (s.mode === 'rebut') { await setKeys(new Set()); await sleep(1200); await page.keyboard.press('Enter'); continue; }
     if (s.mode === 'down') { await setKeys(new Set()); await sleep(10300); await page.keyboard.press('Enter'); continue; }
     if (s.mode === 'record') { await setKeys(new Set()); await sleep(7300); await page.keyboard.press('Enter'); continue; }
@@ -75,6 +78,12 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
         if (l.k === 'gust' && !l.warn) tx -= l.dir * 160;
         if (l.k === 'area') { tx = (l.x0 + l.x1) / 2; if (s.P.x < l.x0 + 20 || s.P.x > l.x1 - 20) ty = s.P.y; }
       }
+    } else if (s.sorbs.length) {
+      // 근거 구슬: 단말기마다 한 번 정답률에 따라 틀린 구슬을 먼저 고를지 정한다
+      if (sockPick.id !== s.sorbs[0].id) { sockPick.id = s.sorbs[0].id; sockPick.wrong = Math.random() > ACC; sockPick.n = s.sorbs.length; }
+      if (s.sorbs.length < sockPick.n) sockPick.wrong = false;
+      const wrongO = s.sorbs.find(o => !o.c), o = (sockPick.wrong && wrongO) ? wrongO : s.sorbs.find(o => o.c) || s.sorbs[0];
+      tx = o.x; ty = o.y;
     } else if (s.work && s.guide) {
       tx = s.guide.x; ty = s.guide.y;
     } else if (s.race) {
