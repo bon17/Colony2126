@@ -693,6 +693,14 @@ function drawProblemsCard(t) {
 }
 
 /* ===== 스테이지 고르기 ===== */
+// 단계별로 깬다: 앞 스테이지를 깨야 다음 스테이지가 열린다(종장은 다섯 곳을 모두 깨야). 열렸으면 null, 잠겼으면 안내 글
+function stageLock(id) {
+  const s = stageById(id);
+  if (!s || !s.ready) return '준비 중';
+  if (id === 6 && ![1, 2, 3, 4, 5].every(i => save.cleared[i])) return save.cleared[5] ? '다섯 곳을 깨면 열려요' : '5스테이지를 깨면 열려요';
+  if (id > 1 && !save.cleared[id - 1]) return (id - 1) + '스테이지를 깨면 열려요';
+  return null;
+}
 function SelectScene() {
   return {
     name: 'select', t: 0,
@@ -717,8 +725,7 @@ function SelectScene() {
       D.stages.forEach((s, i) => {
         const x = x0 + i * (cw + gap);
         const cleared = !!save.cleared[s.id];
-        const finalLocked = s.id === 6 && !(save.cleared[1] && save.cleared[2] && save.cleared[3] && save.cleared[4] && save.cleared[5]);
-        const playable = s.ready && !finalLocked;
+        const lock = stageLock(s.id), playable = !lock, isNext = playable && !cleared;
         const st = button(x, y0, cw, ch, '', () => { if (playable) go(() => StageScene(s.id)); }, { draw: false, disabled: !playable });
         const lift = st.hot && playable ? -8 : 0;
         panel(x, y0 + lift, cw, ch, { fill: playable ? (st.hot ? 'rgba(66,56,130,0.96)' : 'rgba(36,31,74,0.94)') : 'rgba(30,27,58,0.8)',
@@ -743,8 +750,10 @@ function SelectScene() {
           rr(x + 30, sy - 20, cw - 60, 40, 20); ctx.fillStyle = C.good; ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.stroke();
           txt('바꿨어요 ✓', x + cw / 2, sy + 1, 19, C.ink, 'center');
         } else if (!s.ready) txt('준비 중', x + cw / 2, sy, 19, '#8e87bd', 'center', { weight: 700 });
-        else if (finalLocked) txt('다섯 곳을 깨면 열려요', x + cw / 2, sy, 15, '#8e87bd', 'center', { weight: 700 });
+        else if (lock) txt(lock, x + cw / 2, sy, 15, '#8e87bd', 'center', { weight: 700 });
         else txt('출발 ▶', x + cw / 2, sy, 21, C.mustard, 'center');
+        // 지금 할 차례인 스테이지는 테두리가 깜박인다
+        if (isNext && !st.hot) { rr(x - 5, y0 - 5, cw + 10, ch + 10, 26); ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(247,197,72,' + (0.45 + 0.4 * Math.sin(this.t * 4)).toFixed(3) + ')'; ctx.stroke(); }
       });
       if (save.badges.length) txt('운동 배지: ' + save.badges.join(' · '), 40, 650, 19, C.cream, 'left', { stroke: C.ink, sw: 5 });
       fsButton(W - 676, H - 82, 190, 56, 19);
@@ -786,8 +795,15 @@ function ResultScene(r) {
         if (sk) { txt('기술: ' + sk.name, W / 2 - 200, 456, 23, C.tealL, 'left'); para(sk.desc + ' (자동 적용)', W / 2 - 200, 488, 500, 17, '#c8f5ee', 24, { weight: 600 }); }
         txt('운동 배지: ' + def.badge, W / 2 - 200, 556, 23, C.amberL, 'left');
       }
-      button(W / 2 - 300, 630, 280, 58, '스테이지 고르기', () => go(() => SelectScene()));
-      button(W / 2 + 20, 630, 280, 58, '다시 하기', () => go(() => StageScene(r.id, { skipIntro: true })), { fill: '#d9d2f0' });
+      // 다음 스테이지가 열렸으면 그쪽을 먼저(Enter로 바로) 고른다
+      if (!stageLock(r.id + 1)) {
+        button(W / 2 - 420, 630, 270, 58, '다음 스테이지 ▶', () => go(() => StageScene(r.id + 1)), { fill: C.tealL });
+        button(W / 2 - 135, 630, 270, 58, '스테이지 고르기', () => go(() => SelectScene()));
+        button(W / 2 + 150, 630, 270, 58, '다시 하기', () => go(() => StageScene(r.id, { skipIntro: true })), { fill: '#d9d2f0' });
+      } else {
+        button(W / 2 - 300, 630, 280, 58, '스테이지 고르기', () => go(() => SelectScene()));
+        button(W / 2 + 20, 630, 280, 58, '다시 하기', () => go(() => StageScene(r.id, { skipIntro: true })), { fill: '#d9d2f0' });
+      }
     }
   };
 }
@@ -5359,6 +5375,8 @@ if (DEBUG) {
     down() { playerDown(); },
     guide() { const g = routeGoal(); return g ? { x: g.x, y: g.y } : null; },
     ending(step) { overlay = null; setScene(EndingScene({ at: step })); },
+    result(id) { overlay = null; const d = stageById(id); setScene(ResultScene({ id, name: d.name, time: 300, chips: 6, chipTotal: 6, right: 4, wrong: 1, level: 4, rescued: 2 })); },
+    select() { overlay = null; setScene(SelectScene()); },
     reset() { save = defaultSave(); writeSave(); }
   };
 }
