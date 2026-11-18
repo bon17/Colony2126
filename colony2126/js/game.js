@@ -1724,13 +1724,13 @@ function layoutStage6() {
   sock('k2', 430, 5470, 2, 'bar', 'women', 300, { ally: 1, join: '같이 달리자!', offText: '출전 금지 차단막이 열렸어요' });
   wall('wC', 70, 4400, 1460, 16, ['k1', 'k2'], { quiet: true });
   // B: 벨트 4줄(끝에 압착기), 양쪽 벽의 발사대, 잠긴 쉼터
-  sock('k3', 360, 2850, 3, 'belt', 'ilo', 420, { ally: 2, join: '퇴근! 같이 가요!', offText: '벨트가 멈추고 쉼터가 열렸어요' });
-  sock('k4', 1250, 3420, 4, 'arms', 'npt', 420, { ally: 4, join: '무기 말고 평화!', offText: '발사대가 내려갔어요. 하지만 잔여 신호는 아직 깜박여요' });
+  sock('k3', 360, 2850, 3, 'belt', 'ilo', 700, { ally: 2, join: '퇴근! 같이 가요!', offText: '벨트가 멈추고 쉼터가 열렸어요' });
+  sock('k4', 1250, 3420, 4, 'arms', 'npt', 700, { ally: 4, join: '무기 말고 평화!', offText: '발사대가 내려갔어요. 하지만 잔여 신호는 아직 깜박여요' });
   wall('wB', 130, 2200, 1340, 16, ['k3', 'k4'], { quiet: true });
   // C: 모래폭풍 속 제5조 단말기와 코어 방어기
-  sock('k5', 400, 1720, 5, 'storm', 'paris', 520, { ally: 0, join: '물과 공기는 함께 지켜요!', offText: '모래폭풍이 걷혔어요' });
+  sock('k5', 400, 1720, 5, 'storm', 'paris', 760, { ally: 0, join: '물과 공기는 함께 지켜요!', offText: '모래폭풍이 걷혔어요' });
   wall('wA', 0, 796, 1600, 16, ['k5', 'g3a', 'g3b']);
-  gen('g3a', 330, 935, 200, { name: '코어 방어기' }); gen('g3b', 1270, 935, 200, { name: '코어 방어기' });
+  gen('g3a', 330, 935, 260, { name: '코어 방어기' }); gen('g3b', 1270, 935, 260, { name: '코어 방어기' });
   wall('gate', 560, 712, 480, 16, [], { active: false, fade: 0, gate: true });
   // 헌장 문: 다섯 단말기가 모두 켜지면 열린다(이때 모든 제한이 풀린다)
   wall('charter', 560, 744, 480, 16, ['k1', 'k2', 'k3', 'k4', 'k5'], { charter: true, soft: true, divider: true });
