@@ -515,8 +515,8 @@ window.COLONY_DATA = {
       goal: '제도 카드 다섯 장으로 오더의 원칙을 바꾸세요',
       mission: {
         why: '오더 본체가 「효율」 원칙 하나로, 우리가 멈춘 모듈을 모두 다시 켰어요.',
-        goal: '원칙 단말기에 제도 카드 5장을 꽂아 문제를 하나씩 끄고, 오더 본체를 증거로 반박하세요!',
-        call: '쏴서 부수는 것만으로는 안 돼요. 단말기를 열고 제도 카드를 꽂으세요'
+        goal: '운동의 방법으로 원칙 단말기를 열고, 기록을 순서대로 밟아 제도 카드를 꽂으세요. 다섯 장을 꽂으면 오더 본체가 기다려요!',
+        call: '단말기마다 여는 방법이 달라요. 위쪽 「지금 할 일」을 보세요'
       },
       signs: { left: '화성 태생', right: '지구 출신', merged: '모두의 길' },
       problem: '사람보다 효율',
@@ -527,29 +527,30 @@ window.COLONY_DATA = {
         { img: 's6c', text: '하지만 우리에겐 지구 사람들이 만든 {약속} 다섯 개가 있어요. 제도 카드로 오더의 원칙을 바꾸러 가요!' }
       ],
       slogans: [ ['오더 코어', '효율이 모든 것에 앞선다'], ['모듈 재가동', '분리 · 출전 금지 · 24시간 가동'], ['원칙은 하나', '사람보다 효율'] ],
-      /* 원칙 단말기: 잠금을 부수면 그 조항의 근거가 되는 기록 구슬 3개가 나온다. 맞는 구슬에 닿아야 제도 카드가 꽂힌다.
-         정답은 그 조항을 뒷받침하는 기록, 오답은 문제(차별·전쟁 등)를 보여 주는 기록이나 다른 운동의 기록 */
-      evidence: [
-        { article: 1, options: [
-          { record: 'r1_1994', label: '1994 첫 선거', correct: true, good: '모든 인종이 함께 투표했다. 태어난 곳으로 나누지 않는다는 제1조의 근거!' },
-          { record: 'r1_sign', label: '인종 분리 표지판', correct: false, why: '사람을 나누던 때의 기록이야. 나누지 않게 된 근거가 필요해.' },
-          { record: 'r3_mayday', label: '1889 메이데이', correct: false, why: '노동자들의 날이야. 제1조와는 다른 이야기야.' } ] },
-        { article: 2, options: [
-          { record: 'r2_1971', label: '1971 평등 행진', correct: true, good: '교육·취업·임금의 평등을 요구하며 행진했다. 제2조의 근거!' },
-          { record: 'r1_beach', label: '백인 전용 해변', correct: false, why: '차별하던 때의 기록이야. 평등을 요구한 근거가 필요해.' },
-          { record: 'r5_ships', label: '바닥에 남은 배', correct: false, why: '호수가 말라 버린 기록이야. 제2조와는 다른 이야기야.' } ] },
-        { article: 3, options: [
-          { record: 'r3_1886', label: '1886 시카고 파업', correct: true, good: '하루 8시간 노동을 요구한 파업. 일 8·쉼 8이라는 제3조의 근거!' },
-          { record: 'r3_child', label: '방직 공장의 아이', correct: false, why: '오래 일하던 문제의 기록이야. 8시간을 요구한 근거가 필요해.' },
-          { record: 'r4_iraq', label: '2003 전쟁 반대 운동', correct: false, why: '전쟁에 반대한 기록이야. 제3조와는 다른 이야기야.' } ] },
-        { article: 4, options: [
-          { record: 'r4_nuclear', label: '핵 실험 반대 시위', correct: true, good: '대량 살상 무기에 반대한 시민들. 무기를 늘리지 않는다는 제4조의 근거!' },
-          { record: 'r4_vietnam', label: '베트남 전쟁', correct: false, why: '전쟁이 일어난 기록이야. 무기를 막으려 한 근거가 필요해.' },
-          { record: 'r2_boston', label: '1967 보스턴 마라톤', correct: false, why: '마라톤 완주 기록이야. 제4조와는 다른 이야기야.' } ] },
-        { article: 5, options: [
-          { record: 'r5_rio', label: '1992 리우 선언', correct: true, good: '세계 여러 나라가 환경을 함께 지키기로 약속했다. 제5조의 근거!' },
-          { record: 'r5_2008', label: '2008 아랄해', correct: false, why: '호수가 말라붙은 문제의 기록이야. 함께 지키기로 한 근거가 필요해.' },
-          { record: 'r1_king', label: '1963 킹의 연설', correct: false, why: '인종 차별에 맞선 연설이야. 제5조와는 다른 이야기야.' } ] }
+      /* 원칙 단말기 퀴즈: 단말기를 그 운동의 방법으로 열면 기록 발판 3개가 나온다. 순서대로 밟아야 제도 카드가 꽂힌다.
+         order: 'role' = 문제 → 행동 → 제도 순서, 'year' = 일어난 해 순서. 배열 순서 = 종장에서 만나는 순서이자 밟아야 하는 순서
+         line: 다 밟은 뒤 카드에 나오는 한 줄 설명 */
+      chains: [
+        { article: 3, mov: '노동', order: 'role', items: [
+          { record: 'r3_child', label: '방직 공장의 아이', role: '문제', line: '아이까지 쉬지 못하고 오래 일했다' },
+          { record: 'r3_1886', label: '시카고 8시간 파업', role: '행동', line: '하루 8시간 노동을 요구하며 파업했다' },
+          { record: 'r3_ilo', label: '국제 노동 기구(ILO)', role: '제도', line: '1일 8시간 노동이 국제 기준이 되었다' } ] },
+        { article: 1, mov: '민권', order: 'role', items: [
+          { record: 'r1_sign', label: '인종 분리 표지판', role: '문제', line: '인종에 따라 사람을 나눴다' },
+          { record: 'r1_king', label: '킹의 연설', role: '행동', line: '차별 없는 사회를 외치며 행진했다' },
+          { record: 'r1_civil', label: '민권법', role: '제도', line: '인종 차별이 불법이 되었다' } ] },
+        { article: 5, mov: '환경', order: 'role', items: [
+          { record: 'r5_2008', label: '말라붙은 아랄해', role: '문제', line: '물을 끌어다 써서 호수가 말라붙었다' },
+          { record: 'r5_greenpeace', label: '그린피스', role: '행동', line: '시민들이 모여 자연을 지키러 나섰다' },
+          { record: 'r5_paris', label: '파리 협정', role: '제도', line: '모든 나라가 함께 온실가스를 줄이기로 했다' } ] },
+        { article: 4, mov: '반전 평화', order: 'role', items: [
+          { record: 'r4_vietnam', label: '베트남 전쟁', role: '문제', line: '긴 전쟁으로 많은 사람이 희생되었다' },
+          { record: 'r4_nuclear', label: '핵 실험 반대 시위', role: '행동', line: '대량 살상 무기에 반대하며 시위했다' },
+          { record: 'r4_npt', label: '핵 확산 금지 조약(NPT)', role: '제도', line: '핵무기가 더 퍼지지 않게 약속했다' } ] },
+        { article: 2, mov: '여성', order: 'year', items: [
+          { record: 'r2_boston', label: '보스턴 마라톤 완주', year: '1967', line: '막아서는 감독관을 지나 끝까지 달렸다' },
+          { record: 'r2_1971', label: '평등을 요구하는 행진', year: '1971', line: '교육·취업·임금의 평등을 요구했다' },
+          { record: 'r2_1972', label: '여성 참가 공식 허용', year: '1972', line: '보스턴 마라톤이 여성 참가를 허용했다' } ] }
       ],
       boss: {
         name: '오더 본체', img: 'boss_final',
