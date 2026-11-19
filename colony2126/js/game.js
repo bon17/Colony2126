@@ -85,6 +85,9 @@ const IMG = {}, PHOTO = {};
 function tryLoad(store, key, base, exts) {
   let i = 0;
   const img = new Image();
+  // 한 파일 버전(tools/build_single.py): 그림이 페이지 안에 들어 있다
+  const pack = window.COLONY_ASSETS;
+  if (pack) { const e = exts.find(x => pack[base + '.' + x]); if (!e) return; img.onload = () => { store[key] = img; }; img.src = pack[base + '.' + e]; return; }
   img.onload = () => { store[key] = img; };
   img.onerror = () => { i++; if (i < exts.length) img.src = base + '.' + exts[i]; };
   img.src = base + '.' + exts[0];
