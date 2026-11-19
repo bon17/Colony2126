@@ -619,27 +619,40 @@ function TitleScene() {
 
 /* ===== 난이도 ===== */
 function DifficultyScene() {
+  // 처음에는 아무것도 고르지 않은 상태. 카드를 누르면 「골랐어요 ✓」, 아래 버튼을 눌러야 시작한다(잘못 눌러도 바꿀 수 있다)
   return {
-    name: 'difficulty', t: 0,
-    update(dt) { this.t += dt; menuNav(); if (hit('Escape')) go(() => TitleScene()); },
+    name: 'difficulty', t: 0, pick: null, init: false,
+    update(dt) {
+      // 키보드 초점은 방향키를 누를 때부터 보인다
+      if (!this.init) { this.init = true; ui.focus = -1; }
+      this.t += dt; menuNav(); if (hit('Escape')) go(() => TitleScene());
+    },
+    start() {
+      if (!this.pick) return;
+      save = defaultSave(); save.started = true; save.difficulty = this.pick; writeSave();
+      go(() => OpeningScene());
+    },
     draw() {
       backdrop('title', this.t); dim(0.62);
-      txt('난이도를 고르세요', W / 2, 120, 44, C.cream, 'center', { stroke: C.ink, sw: 8 });
+      txt('난이도를 고르세요', W / 2, 110, 44, C.cream, 'center', { stroke: C.ink, sw: 8 });
       const opts = [
         { id: 'easy', name: '쉬움', lines: ['체력이 넉넉해요', '쓰러져도 그 자리에서 다시 일어나요'], col: C.tealL },
         { id: 'normal', name: '보통', lines: ['목숨 3개', '쓰러지면 구역 입구에서 다시'], col: C.mustard }
       ];
       opts.forEach((o, i) => {
-        const x = W / 2 - 430 + i * 450, y = 200, w = 410, h = 300;
-        const st = button(x, y, w, h, '', () => {
-          save = defaultSave(); save.started = true; save.difficulty = o.id; writeSave();
-          go(() => OpeningScene());
-        }, { draw: false });
-        panel(x, y, w, h, { fill: st.hot ? 'rgba(60,52,120,0.95)' : 'rgba(27,24,56,0.9)', stroke: st.hot ? o.col : 'rgba(255,244,220,0.6)', lw: st.hot ? 5 : 3 });
-        txt(o.name, x + w / 2, y + 70, 54, o.col, 'center', { weight: 900, stroke: C.ink, sw: 8 });
-        o.lines.forEach((l, j) => txt(l, x + w / 2, y + 160 + j * 40, 22, C.cream, 'center', { weight: 700 }));
+        const x = W / 2 - 430 + i * 450, y = 180, w = 410, h = 300, on = this.pick === o.id;
+        const st = button(x, y, w, h, '', () => { this.pick = o.id; ui.focus = usingTouch ? -1 : 2; }, { draw: false });
+        panel(x, y, w, h, { fill: on ? 'rgba(66,56,132,0.97)' : st.hot ? 'rgba(46,40,96,0.94)' : 'rgba(27,24,56,0.9)', stroke: on ? o.col : st.hot ? C.cream : 'rgba(255,244,220,0.45)', lw: on ? 6 : st.hot ? 4 : 3 });
+        txt(o.name, x + w / 2, y + 66, 54, o.col, 'center', { weight: 900, stroke: C.ink, sw: 8 });
+        o.lines.forEach((l, j) => txt(l, x + w / 2, y + 146 + j * 38, 22, C.cream, 'center', { weight: 700 }));
+        if (on) {
+          rr(x + w / 2 - 92, y + h - 70, 184, 46, 23); ctx.fillStyle = o.col; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
+          txt('골랐어요 ✓', x + w / 2, y + h - 47, 22, C.ink, 'center', { weight: 900 });
+        } else txt('눌러서 고르기', x + w / 2, y + h - 47, 18, 'rgba(255,244,220,0.55)', 'center', { weight: 600 });
       });
-      txt('수업 시간이 짧으면 쉬움을 추천해요', W / 2, 560, 20, '#d4cdf5', 'center', { weight: 600 });
+      txt('수업 시간이 짧으면 쉬움을 추천해요', W / 2, 512, 20, '#d4cdf5', 'center', { weight: 600 });
+      const sel = opts.find(o => o.id === this.pick);
+      button(W / 2 - 200, 548, 400, 66, sel ? '「' + sel.name + '」으로 시작' : '난이도를 먼저 골라요', () => this.start(), { size: 26, disabled: !sel, fill: sel ? C.mustard : C.cream });
       button(40, H - 80, 160, 50, '◀ 뒤로', () => go(() => TitleScene()), { size: 20 });
     }
   };
