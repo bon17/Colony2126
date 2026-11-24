@@ -112,7 +112,7 @@ function photoOf(opt) {
 /* ---------------- 저장 (실패해도 게임은 계속) ---------------- */
 const SAVE_KEY = 'colony2126.save.v1';
 function defaultSave() {
-  return { started: false, difficulty: 'normal', seenOpening: false, cleared: {}, records: {}, cards: {},
+  return { started: false, difficulty: 'normal', seenOpening: false, cleared: {}, hardCleared: {}, records: {}, cards: {},
            skills: [], badges: [], level: 1, xp: 0, upgrades: {}, evidence: { right: 0, wrong: 0 }, stageStats: {} };
 }
 function loadSave() {
@@ -637,20 +637,22 @@ function DifficultyScene() {
       txt('난이도를 고르세요', W / 2, 110, 44, C.cream, 'center', { stroke: C.ink, sw: 8 });
       const opts = [
         { id: 'easy', name: '쉬움', lines: ['체력이 넉넉해요', '쓰러져도 그 자리에서 다시 일어나요'], col: C.tealL },
-        { id: 'normal', name: '보통', lines: ['목숨 3개', '쓰러지면 구역 입구에서 다시'], col: C.mustard }
+        { id: 'normal', name: '보통', lines: ['목숨 3개', '쓰러지면 구역 입구에서 다시'], col: C.mustard },
+        { id: 'hard', name: '어려움', lines: ['적이 더 세고, 더 많이 쏴요', '틀린 증거는 구슬이 다시 섞여요', '깨면 스테이지에 ★'], col: '#ff8a6a' }
       ];
       opts.forEach((o, i) => {
-        const x = W / 2 - 430 + i * 450, y = 180, w = 410, h = 300, on = this.pick === o.id;
-        const st = button(x, y, w, h, '', () => { this.pick = o.id; ui.focus = usingTouch ? -1 : 2; }, { draw: false });
+        const w = 370, x = W / 2 - (opts.length * w + (opts.length - 1) * 30) / 2 + i * (w + 30), y = 180, h = 300, on = this.pick === o.id;
+        const st = button(x, y, w, h, '', () => { this.pick = o.id; ui.focus = usingTouch ? -1 : opts.length; }, { draw: false });
         panel(x, y, w, h, { fill: on ? 'rgba(66,56,132,0.97)' : st.hot ? 'rgba(46,40,96,0.94)' : 'rgba(27,24,56,0.9)', stroke: on ? o.col : st.hot ? C.cream : 'rgba(255,244,220,0.45)', lw: on ? 6 : st.hot ? 4 : 3 });
         txt(o.name, x + w / 2, y + 66, 54, o.col, 'center', { weight: 900, stroke: C.ink, sw: 8 });
-        o.lines.forEach((l, j) => txt(l, x + w / 2, y + 146 + j * 38, 22, C.cream, 'center', { weight: 700 }));
+        const lh = o.lines.length > 2 ? 34 : 38, ly = o.lines.length > 2 ? 136 : 146;
+        o.lines.forEach((l, j) => { setFont(22, 700); const sz = Math.min(22, 22 * (w - 36) / ctx.measureText(l).width); txt(l, x + w / 2, y + ly + j * lh, sz, C.cream, 'center', { weight: 700 }); });
         if (on) {
           rr(x + w / 2 - 92, y + h - 70, 184, 46, 23); ctx.fillStyle = o.col; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = C.ink; ctx.stroke();
           txt('골랐어요 ✓', x + w / 2, y + h - 47, 22, C.ink, 'center', { weight: 900 });
         } else txt('눌러서 고르기', x + w / 2, y + h - 47, 18, 'rgba(255,244,220,0.55)', 'center', { weight: 600 });
       });
-      txt('수업 시간이 짧으면 쉬움을 추천해요', W / 2, 512, 20, '#d4cdf5', 'center', { weight: 600 });
+      txt('수업 시간이 짧으면 쉬움, 도전하고 싶으면 어려움을 골라요', W / 2, 512, 20, '#d4cdf5', 'center', { weight: 600 });
       const sel = opts.find(o => o.id === this.pick);
       button(W / 2 - 200, 548, 400, 66, sel ? '「' + sel.name + '」으로 시작' : '난이도를 먼저 골라요', () => this.start(), { size: 26, disabled: !sel, fill: sel ? C.mustard : C.cream });
       button(40, H - 80, 160, 50, '◀ 뒤로', () => go(() => TitleScene()), { size: 20 });
@@ -777,7 +779,7 @@ function SelectScene() {
       if (this.teacherT != null && this.t - this.teacherT < 2.5) txt(save.teacher ? '선생님 모드를 켰어요. 모든 스테이지가 열려요' : '선생님 모드를 껐어요', W / 2, 300, 24, C.tealL, 'center', { weight: 900, stroke: C.ink, sw: 6 });
       txt('효율만 따지는 오더 때문에 생긴 문제를, 지구 기록으로 하나씩 바꿔요', 50, 92, 19, C.tealL, 'left', { weight: 600 });
       const cardsN = Object.keys(save.cards).length;
-      txt('Lv ' + save.level + '   ·   정착촌 헌장 ' + cardsN + '/5조   ·   ' + (save.difficulty === 'easy' ? '쉬움' : '보통'), W - 50, 54, 21, C.amberL, 'right');
+      txt('Lv ' + save.level + '   ·   정착촌 헌장 ' + cardsN + '/5조   ·   ' + diffName(), W - 50, 54, 21, C.amberL, 'right');
       if (save.cleared[6]) button(W - 330, 72, 280, 38, '정착촌 헌장 보기 ▶', () => go(() => EndingScene({ at: 'result' })), { size: 18, fill: C.mustard });
       const own = ownedSkills();
       if (own.length) {
@@ -810,6 +812,8 @@ function SelectScene() {
         const sy = y0 + lift + 248;
         // 아직 남은 과제 표시: 4스테이지 잔여 신호, 5스테이지 모래폭풍
         const left = cleared && (s.id === 4 && save.residual ? '잔여 신호 ⚠' : s.id === 5 ? '모래폭풍 ⚠' : null);
+        // 어려움으로 깬 스테이지
+        if (save.hardCleared && save.hardCleared[s.id]) { rr(x + 8, y0 + lift + 8, 64, 24, 12); ctx.fillStyle = 'rgba(224,87,62,0.95)'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C.ink; ctx.stroke(); txt('★ 어려움', x + 40, y0 + lift + 20, 12, '#fff3dc', 'center', { weight: 900 }); }
         if (left) { setFont(13, 600); const rtw = ctx.measureText(left).width + 18; rr(x + cw - rtw - 8, y0 + lift + 8, rtw, 24, 12); ctx.fillStyle = Math.floor(this.t * 2) % 2 ? 'rgba(160,30,40,0.95)' : 'rgba(110,20,30,0.95)'; ctx.fill(); txt(left, x + cw - rtw / 2 - 8, y0 + lift + 20, 13, '#ffd0c8', 'center', { weight: 600 }); }
         if (cleared) {
           rr(x + 30, sy - 20, cw - 60, 40, 20); ctx.fillStyle = C.good; ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.stroke();
@@ -839,6 +843,7 @@ function ResultScene(r) {
       dim(0.55);
       panel(W / 2 - 420, 50, 840, 560);
       txt('STAGE ' + r.id + ' · ' + r.name + ' 클리어!', W / 2, 110, 38, C.mustard, 'center', { weight: 900, stroke: C.ink, sw: 8 });
+      if (r.hard) { rr(W / 2 - 110, 136, 220, 30, 15); ctx.fillStyle = 'rgba(224,87,62,0.95)'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke(); txt('★ 어려움으로 깼어요', W / 2, 151, 17, '#fff3dc', 'center', { weight: 900 }); }
       const acc = r.right + r.wrong ? Math.round(r.right / (r.right + r.wrong) * 100) : 100;
       const rows = [
         ['걸린 시간', fmtTime(r.time)],
@@ -857,7 +862,7 @@ function ResultScene(r) {
       if (def.card) {
         drawCardArt(W / 2 - 300, 420, 118, def.card, 1);
         const sk = D.skills[def.skill];
-        if (sk) { txt('기술: ' + sk.name, W / 2 - 200, 456, 23, C.tealL, 'left'); para(sk.desc + ' (자동 적용)', W / 2 - 200, 488, 500, 17, '#c8f5ee', 24, { weight: 600 }); }
+        if (sk) { txt('기술: ' + sk.name, W / 2 - 200, 456, 23, C.tealL, 'left'); para(skillDesc(sk) + ' (자동 적용)', W / 2 - 200, 488, 500, 17, '#c8f5ee', 24, { weight: 600 }); }
         txt('운동 배지: ' + def.badge, W / 2 - 200, 556, 23, C.amberL, 'left');
       }
       // 다음 스테이지가 열렸으면 그쪽을 먼저(Enter로 바로) 고른다
@@ -907,7 +912,7 @@ const sheetUrl = () => String((D.ending && D.ending.sheetUrl) || '').trim();
 function sendCharter() {
   const st = endingStats();
   const body = JSON.stringify({ name: save.name || '', article6: save.charter6 || '', grade: st.grade, acc: st.acc, right: st.right, total: st.tot, level: st.level,
-    time: fmtTime(st.time), difficulty: save.difficulty === 'easy' ? '쉬움' : '보통', badges: (save.badges || []).length, date: save.endDate || '' });
+    time: fmtTime(st.time), difficulty: diffName(), badges: (save.badges || []).length, date: save.endDate || '' });
   // 응답을 읽지 않는 방식(no-cors)으로 보낸다. 네트워크가 막히면 실패로 본다
   try { return fetch(sheetUrl(), { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body }).then(() => true, () => false); }
   catch (e) { return Promise.resolve(false); }
@@ -1140,6 +1145,14 @@ function EndingScene(opts) {
       txt('정착촌 헌장 · 결과 카드', x + 40, y + 44, 32, C.ink, 'left', { weight: 900 });
       txt((save.name || '이름 없음') + (save.endDate ? '   ' + save.endDate : ''), x + w - 40, y + 44, 22, '#4a3f6b', 'right', { weight: 600 });
       ctx.strokeStyle = 'rgba(176,90,30,0.4)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 30, y + 76); ctx.lineTo(x + w - 30, y + 76); ctx.stroke();
+      // 모든 스테이지를 어려움으로 깼으면 도장
+      if (allHard()) {
+        ctx.save(); ctx.translate(x + 540, y + 46); ctx.rotate(-0.16); ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = '#c8402e'; ctx.lineWidth = 4; rr(-92, -26, 184, 52, 12); ctx.stroke();
+        ctx.lineWidth = 1.5; rr(-85, -19, 170, 38, 8); ctx.stroke();
+        txt('★ 어려움 완주 ★', 0, 1, 24, '#c8402e', 'center', { weight: 900 });
+        ctx.restore();
+      }
       CH.forEach((c, i) => {
         const yy = y + 104 + i * 52, card = cardOf(c.article);
         txt('제' + c.article + '조', x + 40, yy, 21, '#b05a1e', 'left', { weight: 900 });
@@ -1317,6 +1330,51 @@ function computeStats(up) {
     dashCd: skillFx('dashCd', 1.2 * Math.pow(0.82, n('dash'))),
     allies: n('ally')
   };
+}
+
+/* ----- 어려움 모드 (숫자는 data.js의 hard) ----- */
+const HD = D.hard || {};
+const isHard = () => save.difficulty === 'hard';
+const DIFF_NAME = { easy: '쉬움', normal: '보통', hard: '어려움' };
+const diffName = () => DIFF_NAME[save.difficulty] || '보통';
+const hv = (k, d) => (isHard() && typeof HD[k] === 'number' ? HD[k] : d);          // 어려움이면 data.js 값, 아니면 d
+function rampOf(id) { if (!isHard()) return 1; const r = HD.ramp || []; return r[id - 1] || r[r.length - 1] || 1; }
+const hardRamp = () => rampOf(G && G.def ? G.def.id : 1);
+// 지금 스테이지의 어려움 숫자(없으면 null)
+function hardStage(k) { if (!isHard() || !G || !G.def) return null; const s = (HD.stages || {})[G.def.id]; return s && s[k] != null ? s[k] : null; }
+const fireMul = () => (isHard() ? hv('fire', 1) * hardRamp() : 1);                  // 적이 쏘는 빈도
+const allHard = () => D.stages.every(s => save.hardCleared && save.hardCleared[s.id]);
+// 기술 설명: 어려움에서는 막아 주는 간격이 길어지므로 숫자를 맞춰 보여 준다
+function skillDesc(sk) {
+  if (sk && sk.effect && sk.effect.guard && isHard()) { const m = hv('guard', 1); return '동료가 더 자주 막아 줘요 (' + Math.round(10 * m) + '초마다 → ' + Math.round(sk.effect.guard * m) + '초마다)'; }
+  return sk ? sk.desc : '';
+}
+// 지도를 만든 뒤 어려움 숫자를 덧씌운다
+function applyHard(L, id) {
+  if (!isHard()) return;
+  const s = (HD.stages || {})[id] || {}, k = rampOf(id), num = (v, d) => (typeof v === 'number' ? v : d);
+  // 구역: 한꺼번에 있을 수 있는 적 수와 새로 나오는 빈도
+  L.zones.forEach(z => { if (z.max) z.max = Math.round(z.max * num(HD.count, 1) * k); if (z.every) z.every = z.every / (num(HD.spawn, 1) * k); });
+  // 발생기·가동 장치·밸브 체력(송신탑·단말기는 부숴서 여는 것이 아니다)
+  const hpm = num(HD.enemyHp, 1);
+  L.gens.forEach(g => { if (!g.tower && !g.socket && !g.noShoot && g.maxHp) g.maxHp = g.hp = Math.round(g.maxHp * hpm); });
+  if (id === 1) {
+    if (s.laneSlow != null && L.restrict) L.restrict.slow = s.laneSlow;
+    L.zones[0].initial.push(['turret', 1270, 2905]);    // 발생기 둘 사이
+    L.zones[1].initial.push(['turret', 1280, 2520]);    // 검문소 들어가는 길
+  }
+  if (id === 2 && s.raceSpeed != null && L.race) L.race.v = s.raceSpeed;
+  if (id === 3 && L.fatigue) { if (s.fatigueFill != null) L.fatigue.fill = s.fatigueFill; if (s.fatigueIdle != null) L.fatigue.idle = s.fatigueIdle; }
+  if (id === 4) {
+    if (s.armsEvery != null && L.armsRace) L.armsRace.every = s.armsEvery;
+    if (s.towerTime != null) { const r = s.towerTime / (L.towerTime || 7); L.gens.forEach(g => { if (g.tower && g.time) g.time *= r; }); L.towerTime = s.towerTime; }
+  }
+  if (id === 5 && L.storm) {
+    if (s.stormView != null) L.storm.r0 = s.stormView;
+    if (s.gustEvery) L.storm.gust.every = s.gustEvery.slice();
+    if (s.gustPower != null) L.storm.gust.power = s.gustPower;
+  }
+  if (id === 6) { if (s.runLimit != null) L.runLimit = s.runLimit; if (s.holdTime != null) L.holdTime = s.holdTime; }
 }
 
 /* ----- 1스테이지 지도 ----- */
@@ -2027,6 +2085,7 @@ function updateTips(dt) {
 function newRun(stageId, opts) {
   const def = stageById(stageId);
   const L = LAYOUTS[stageId]();
+  applyHard(L, stageId);
   const up = Object.assign({}, save.upgrades);
   const st = computeStats(up);
   const skills = ['pulse'];
@@ -2038,10 +2097,10 @@ function newRun(stageId, opts) {
     enemies: [], pB: [], eB: [], gems: [], parts: [], texts: [], pulses: [], settlers: [], trail: [],
     walls: L.walls, gens: L.gens, zones: L.zones.map(z => Object.assign({ entered: false, spawnT: 2 }, z)), chips: L.chips, caps: L.caps,
     zoneIdx: -1, cam: { x: 0, y: 0 }, shake: 0, mode: 'play', time: 0, t: 0,
-    lives: save.difficulty === 'easy' ? Infinity : 3, checkpoint: { x: L.start.x, y: L.start.y },
+    lives: save.difficulty === 'easy' ? Infinity : hv('lives', 3), maxLives: save.difficulty === 'easy' ? 0 : hv('lives', 3), checkpoint: { x: L.start.x, y: L.start.y },
     stats: { right: 0, wrong: 0, downs: 0, rescued: 0, kills: 0 },
     boss: null, arenaLock: false, banner: null, toasts: [], hintT: 14, introT: 0, clearT: 0, lvT: 0, choices: null,
-    hpMul: save.difficulty === 'easy' ? 0.8 : 1
+    hpMul: save.difficulty === 'easy' ? 0.8 : hv('enemyHp', 1)
   };
   const P = G.P;
   G.cam.x = clamp(P.x - W / 2, 0, L.w - W); G.cam.y = clamp(P.y - H / 2, 0, L.h - H);
@@ -2154,7 +2213,7 @@ function spawnEnemy(type, x, y, zone, chip) {
   G.enemies.push(e);
   return e;
 }
-function enemyShot(x, y, a, spd, r) { G.eB.push({ x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, r: r || 8, life: 7 }); }
+function enemyShot(x, y, a, spd, r) { spd *= hv('shotSpeed', 1); G.eB.push({ x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, r: r || 8, life: 7 }); }
 function damageEnemy(e, dmg) {
   if (e.dead) return;
   e.hp -= dmg; e.flash = 0.08;
@@ -2181,18 +2240,18 @@ function updateEnemy(e, dt) {
       vy = ny * want * e.speed + nx * e.strafe * e.speed * 0.6;
       if (Math.random() < dt * 0.35) e.strafe *= -1;
       e.fireT -= dt;
-      if (e.fireT <= 0 && d < 560) { e.fireT = rand(2.0, 2.8); if (!segBlocked(e.x, e.y, P.x, P.y)) enemyShot(e.x, e.y, Math.atan2(dy, dx), 210); }
+      if (e.fireT <= 0 && d < 560) { e.fireT = rand(2.0, 2.8) / fireMul(); if (!segBlocked(e.x, e.y, P.x, P.y)) enemyShot(e.x, e.y, Math.atan2(dy, dx), 210); }
     }
   } else if (e.type === 'chaser' || e.type === 'ejector') {
     if (aware) { const w = Math.sin(e.t * 5) * 0.5; vx = (nx - ny * w) * e.speed; vy = (ny + nx * w) * e.speed; }
   } else if (e.type === 'turret') {
     e.aim = Math.atan2(dy, dx);
     e.fireT -= dt;
-    if (aware && e.fireT <= 0 && d < 600) { e.fireT = 2.2; if (!segBlocked(e.x, e.y, P.x, P.y)) for (let k = -1; k <= 1; k++) enemyShot(e.x, e.y, e.aim + k * 0.25, 190); }
+    if (aware && e.fireT <= 0 && d < 600) { e.fireT = 2.2 / fireMul(); if (!segBlocked(e.x, e.y, P.x, P.y)) for (let k = -1; k <= 1; k++) enemyShot(e.x, e.y, e.aim + k * 0.25, 190); }
   } else if (e.type === 'guard') {
     if (aware) { vx = nx * e.speed; vy = ny * e.speed; }
     e.fireT -= dt;
-    if (aware && e.fireT <= 0 && d < 620) { e.fireT = 3.2; for (let k = 0; k < 12; k++) enemyShot(e.x, e.y, k / 12 * TAU + e.t, 150, 8); }
+    if (aware && e.fireT <= 0 && d < 620) { e.fireT = 3.2 / fireMul(); for (let k = 0; k < 12; k++) enemyShot(e.x, e.y, k / 12 * TAU + e.t, 150, 8); }
   }
   e.vx = lerp(e.vx, vx, Math.min(1, dt * 4)); e.vy = lerp(e.vy, vy, Math.min(1, dt * 4));
   if (e.speed > 0) {
@@ -2213,10 +2272,11 @@ function updateEnemy(e, dt) {
 
 /* ----- 플레이어 ----- */
 const allyAtk = () => skillFx('allyAtk', 0.1);          // 동료 1명마다 늘어나는 공격력
-const guardEvery = () => skillFx('guard', 10);         // 동료가 대신 막아 주는 간격(초)
+const guardEvery = () => skillFx('guard', 10) * hv('guard', 1);   // 동료가 대신 막아 주는 간격(초). 어려움은 data.js hard.guard배
 const allyPct = n => Math.round(n * allyAtk() * 100);
 const allyBonus = () => 1 + allyAtk() * G.settlers.length;
-function hurtPlayer(dmg, sx, sy, force) {
+// raw: 어려움 배를 곱하지 않은 그대로의 피해(data.js에 최종 피해를 적은 것)
+function hurtPlayer(dmg, sx, sy, force, raw) {
   const P = G.P;
   if (P.dead || G.god) return;
   if (!force && (P.inv > 0 || P.dashT > 0)) return;
@@ -2225,6 +2285,7 @@ function hurtPlayer(dmg, sx, sy, force) {
     const g = G.settlers.find(s => !(s.guardAt > G.t));
     if (g) { g.guardAt = G.t + guardEvery(); P.inv = 0.7; addText(g.x, g.y - 50, '막아 줌!', C.tealL, 21); burst(P.x, P.y - 6, C.tealL, 12, 180); Sound.play('ui'); return; }
   }
+  if (!raw && isHard()) dmg = Math.round(dmg * hv('damage', 1));
   P.hp -= dmg; P.inv = 0.9; G.shake = Math.max(G.shake, 7);
   const a = Math.atan2(P.y - sy, P.x - sx);
   P.kx = Math.cos(a) * 280; P.ky = Math.sin(a) * 280;
@@ -2369,7 +2430,7 @@ function damageBoss(dmg, x, y) {
     G.shake = 10; burst(b.x, b.y, C.amber, 20, 260);
   }
 }
-function spawnOrbs(b) {
+function placeOrbs(b) {
   const rd = b.def.rounds[b.round], a = G.L.arena, placed = [];
   shuffle(rd.options).forEach(opt => {
     let x, y, tries = 0;
@@ -2379,6 +2440,9 @@ function spawnOrbs(b) {
     const ang = rand(0, TAU);
     b.orbs.push({ opt, x, y, vx: Math.cos(ang) * 38, vy: Math.sin(ang) * 38, r: 46, t: rand(0, 5), born: 0 });
   });
+}
+function spawnOrbs(b) {
+  placeOrbs(b);
   b.orbsUp = true;
   // 라운드마다 주장을 크게 보여 주고 멈춘다. 「반박하러 가기」를 누르면 다시 시작
   G.mode = 'claim'; G.claimT = 0; G.eB = []; ui.focus = 0;
@@ -2438,7 +2502,7 @@ function drawClaimCard() {
     ctx.save(); ctx.globalAlpha = p2; ctx.translate(0, (1 - p2) * 40);
     const y2 = 480;
     rr(120, y2, W - 240, 150, 22); ctx.fillStyle = 'rgba(24,21,54,0.95)'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(255,244,220,0.5)'; ctx.stroke();
-    txt('이 주장이 틀렸다는 증거 구슬에 몸으로 닿으세요   (틀린 구슬은 반격!)', W / 2, y2 + 30, 21, C.cream, 'center', { weight: 600 });
+    txt('이 주장이 틀렸다는 증거 구슬에 몸으로 닿으세요   ' + (isHard() ? '(틀리면 큰 반격 + 구슬이 다시 섞여요!)' : '(틀린 구슬은 반격!)'), W / 2, y2 + 30, 21, C.cream, 'center', { weight: 600 });
     const opts = b.orbs.map(o => o.opt);
     opts.forEach((o, i) => {
       const cx = W / 2 + (i - (opts.length - 1) / 2) * 300 - 50, cy = y2 + 92;
@@ -2470,13 +2534,16 @@ function resolveOrb(b, orb) {
     Sound.play('shield');
   } else {
     G.stats.wrong++;
-    b.orbs = b.orbs.filter(x => x !== orb);
     burst(orb.x, orb.y, C.bad, 20, 260);
     P.inv = 0;
-    hurtPlayer(10, orb.x, orb.y, true);
+    // 어려움: 반격이 크고, 구슬 3개가 다시 섞여 나온다(하나씩 지워 가며 찍을 수 없다)
+    const hard = isHard();
+    hurtPlayer(hard ? hv('wrongOrb', 25) : 10, orb.x, orb.y, true, hard);
     for (let k = 0; k < 6; k++) enemyShot(orb.x, orb.y, k / 6 * TAU, 100, 7);
+    if (hard) { b.orbs.forEach(x => burst(x.x, x.y, C.amber, 10, 180)); b.orbs = []; placeOrbs(b); }
+    else b.orbs = b.orbs.filter(x => x !== orb);
     P.inv = 1.0;
-    banner('반박 실패!', o.why || '', C.bad, 5.5);
+    banner(hard ? '반박 실패! 구슬이 다시 섞였어요' : '반박 실패!', o.why || '', C.bad, 5.5);
     Sound.play('bad');
   }
 }
@@ -2508,7 +2575,7 @@ function updateBoss(dt) {
     if (b.patT <= 0) b.pat = { kind: pick((G.L.bossPools || BOSS_POOLS)[b.round]), t: 0, n: 0, gap: rand(a.x + 170, a.x + a.w - 170) };
   } else {
     const p = b.pat; p.t += dt;
-    const cool = () => { b.pat = null; b.lasers = []; b.patT = (b.shield ? 1.3 : 0.9) / Math.sqrt(mul); };
+    const cool = () => { b.pat = null; b.lasers = []; b.patT = (b.shield ? 1.3 : 0.9) / Math.sqrt(mul) * (isHard() ? hv('bossRest', 1) / hardRamp() : 1); };
     if (p.kind === 'spread') {
       if (p.n < 3 && p.t >= p.n * 0.45) { const aa = Math.atan2(P.y - b.y, P.x - b.x); for (let k = -2; k <= 2; k++) enemyShot(b.x, b.y + 40, aa + k * 0.22, 225 * mul); p.n++; }
       if (p.t > 1.5) cool();
@@ -2557,7 +2624,7 @@ function updateBoss(dt) {
       // 남은 포대 수만큼 미사일이 떨어진다(경고 원 밖으로)
       const per = 2 + (b.pods || 0);
       if (p.n < 3 && p.t >= p.n * 0.95) {
-        for (let k = 0; k < per; k++) G.shells.push({ x: clamp(P.x + (k ? rand(-230, 230) : 0), a.x + 70, a.x + a.w - 70), y: clamp(P.y + (k ? rand(-120, 120) : 0), 430, a.h - 40), t: -k * 0.12, warn: 1.15, r: 66 });
+        for (let k = 0; k < per; k++) G.shells.push({ x: clamp(P.x + (k ? rand(-230, 230) : 0), a.x + 70, a.x + a.w - 70), y: clamp(P.y + (k ? rand(-120, 120) : 0), 430, a.h - 40), t: -k * 0.12, warn: 1.15 * (hardStage('missileWarn') || 1), r: 66 });
         p.n++;
       }
       if (p.t > 3 * 0.95 + 1.7) cool();
@@ -2618,6 +2685,7 @@ function stageClear() {
   G.clearStep = G.def.change ? 0 : 1;
   const d = G.def, s = save;
   s.cleared[d.id] = true;
+  if (isHard()) { s.hardCleared = s.hardCleared || {}; s.hardCleared[d.id] = true; }
   if (G.L.residual) s.residual = true;
   if (d.card) s.cards[d.card.id] = true;
   if (d.skill && !s.skills.includes(d.skill)) s.skills.push(d.skill);
@@ -2633,7 +2701,7 @@ function stageClear() {
 function resultData() {
   const recs = D.records.filter(r => r.stage === G.def.id);
   return { id: G.def.id, name: G.def.name, time: G.time, chips: recs.filter(r => save.records[r.id]).length, chipTotal: recs.length,
-           right: G.stats.right, wrong: G.stats.wrong, level: G.level, rescued: G.stats.rescued };
+           right: G.stats.right, wrong: G.stats.wrong, level: G.level, rescued: G.stats.rescued, hard: isHard() };
 }
 
 /* ----- 매 프레임 ----- */
@@ -2803,7 +2871,7 @@ function updatePlay(dt) {
     const bp = bossPush(); vx += bp.x; vy += bp.y;
     vx += gustPush();
     vx += P.kx; vy += P.ky; P.kx *= Math.pow(0.0008, dt); P.ky *= Math.pow(0.0008, dt);
-    if (moveBody(P, vx * dt, vy * dt, true)) { hurtPlayer(8, P.x, P.y + (P.y > G.cam.y + H / 2 ? 30 : -30)); showTip('wall', '레이저 벽은 닿으면 아파요', '발생기를 모두 부수면 꺼져요. 노란 화살표를 따라가요'); }
+    if (moveBody(P, vx * dt, vy * dt, true)) { const wh = hardStage('wallHit'); hurtPlayer(wh || 8, P.x, P.y + (P.y > G.cam.y + H / 2 ? 30 : -30), false, !!wh); showTip('wall', '레이저 벽은 닿으면 아파요', '발생기를 모두 부수면 꺼져요. 노란 화살표를 따라가요'); }
     // 나만 막는 차단막에 닿았을 때
     if (G.denyAt === G.t && G.t - (G.denyWarnT || -9) > 1.6) {
       G.denyWarnT = G.t; addText(P.x, P.y - 64, G.denyMsg, C.bad, 19);
@@ -2932,6 +3000,8 @@ function updatePlay(dt) {
     if (z && !z.entered) {
       z.entered = true; G.checkpoint = { x: z.check.x, y: z.check.y };
       z.initial.forEach(s => spawnEnemy(s[0], s[1], s[2], zi, s[3]));
+      // 어려움: 구역마다 정예 경비 드론이 하나 더(1스테이지 첫 구역과 달리기 구간은 빼고)
+      if (isHard() && HD.elite && !z.race && !(G.def.id === 1 && zi === 0)) { z.elite = true; z.spawnT = Math.min(z.spawnT, 1.2); }
       if (zi > 0) G.toasts.push({ zone: z.label, t: 0 });
     }
   }
@@ -2941,12 +3011,16 @@ function updatePlay(dt) {
     if (z.spawnT <= 0) {
       z.spawnT = z.every;
       const racing = z.race && G.race && G.race.on;
-      if (G.enemies.filter(e => e.zone === G.zoneIdx && !(z.race && e.type === 'turret')).length < z.max && !(racing && G.race.grace > 0)) {
+      if ((z.elite || G.enemies.filter(e => e.zone === G.zoneIdx && !(z.race && e.type === 'turret')).length < z.max) && !(racing && G.race.grace > 0)) {
         for (let k = 0; k < 14; k++) {
           const xr = z.xr && mech('lane') ? z.xr : [80, L.w - 80];
           // 달리기 구간에서는 화면 바로 위쪽에, 달리기가 끝나면 광장에만 나타난다
           const x = rand(xr[0], xr[1]), y = racing ? rand(G.race.camY - 110, G.race.camY + 30) : rand(z.y0 + 60, (z.race ? L.race.endY : z.y1) - 60);
-          if (dist(x, y, P.x, P.y) > (racing ? 300 : 430) && !G.walls.some(w => w.active && inRectPad(x, y, w, 30)) && !G.L.solids.some(s => inRectPad(x, y, s, 30)) && !(G.L.domes || []).some(d => dist(x, y, d.x, d.y) < d.r + 30)) { spawnEnemy(pick(z.race && !racing && z.pool2 ? z.pool2 : z.pool), x, y, G.zoneIdx); break; }
+          if (dist(x, y, P.x, P.y) > (racing ? 300 : 430) && !G.walls.some(w => w.active && inRectPad(x, y, w, 30)) && !G.L.solids.some(s => inRectPad(x, y, s, 30)) && !(G.L.domes || []).some(d => dist(x, y, d.x, d.y) < d.r + 30)) {
+            if (z.elite) { z.elite = false; const e = spawnEnemy('guard', x, y, G.zoneIdx); e.elite = true; addText(x, y - 60, '정예 경비 드론!', C.bad, 20); }
+            else spawnEnemy(pick(z.race && !racing && z.pool2 ? z.pool2 : z.pool), x, y, G.zoneIdx);
+            break;
+          }
         }
       }
     }
@@ -3049,7 +3123,7 @@ function updateRace(dt) {
   // 뒤처지면 다친다. 차단막을 넘겨 주지는 않는다: 막힌 차단막 아래, 틈 바로 앞으로 옮기고 화면을 잠깐 멈춘다
   const bottom = R.camY + H - 46;
   if (P.y > bottom && !P.dead) {
-    hurtPlayer(12, P.x, P.y + 60);
+    const bh = hardStage('behindHit'); hurtPlayer(bh || 12, P.x, P.y + 60, false, !!bh);
     if (!P.dead) {
       const gp = nextGap();
       let ny = R.camY + H * 0.64;
@@ -3271,7 +3345,7 @@ function updateArms(dt) {
     const dir = l.side === 'a' ? 1 : -1;
     if (Math.random() < 0.55) {
       const lead = P.moving ? 70 : 0;
-      G.shells.push({ x: clamp(P.x + rand(-70, 70) + P.last.x * lead, 170, 1430), y: clamp(P.y + rand(-60, 60) + P.last.y * lead, 830, L.h - 30), t: 0, warn: 1.4, r: 70 });
+      G.shells.push({ x: clamp(P.x + rand(-70, 70) + P.last.x * lead, 170, 1430), y: clamp(P.y + rand(-60, 60) + P.last.y * lead, 830, L.h - 30), t: 0, warn: 1.4 * (hardStage('missileWarn') || 1), r: 70 });
       l.flash = 0.3;
     } else {
       for (let k = -1; k <= 1; k++) enemyShot(l.x + dir * 34, l.y - 12, (dir > 0 ? 0 : Math.PI) + k * 0.12, 215, 8);
@@ -3409,7 +3483,7 @@ function startQuiz(g) {
   G.quiz = q; G.quizT = 0; G.claimT = 0; ui.focus = 0;
   if (q.type === 'timing') {
     q.cards = shuffle(ch.items.concat(ch.decoys || [])).map(it => ({ it, got: false }));
-    q.off = 0; q.v = 80; q.lock = 0; q.flash = null;
+    q.off = 0; q.v = 80 * (hardStage('quizSpeed') || 1); q.lock = 0; q.flash = null;
     G.mode = 'sockClaim';
   } else if (q.type === 'blank') {
     q.opts = shuffle([ch.items[ch.blank]].concat(ch.choices || [])); q.bad = {};
@@ -3447,7 +3521,7 @@ function quizPress() {
   const hitc = tickerCards(q).find(p => Math.abs(p.x - W / 2) < TICK.win), c = hitc && hitc.c, want = q.ch.items[q.step];
   if (c && c.got) { addText(G.P.x, G.P.y - 70, '이미 고른 기록이에요', C.cream, 18); return; }
   if (c && c.it === want) {
-    c.got = true; q.step++; q.v += 22; q.flash = { ok: true, t: 0.5 };
+    c.got = true; q.step++; q.v += 22 * (hardStage('quizSpeed') || 1); q.flash = { ok: true, t: 0.5 };
     addText(G.P.x, G.P.y - 70, roleOf(q.ch, want) + ' ✓', C.tealL, 22); Sound.play('pick');
     if (q.step >= q.ch.items.length) finishQuiz();
     return;
@@ -5279,7 +5353,11 @@ function drawHUD() {
   ctx.lineWidth = 3; ctx.strokeStyle = C.cream; circle(54, 58, 32); ctx.stroke();
   txt('Lv ' + G.level, 98, 32, 19, C.mustard, 'left');
   if (save.difficulty === 'easy') txt('쉬움', 340, 32, 15, C.tealL, 'right', { weight: 700 });
-  else for (let i = 0; i < 3; i++) drawHeart(286 + i * 22, 32, i < G.lives);
+  else {
+    const nl = G.maxLives || 3;
+    for (let i = 0; i < nl; i++) drawHeart(330 - (nl - 1 - i) * 22, 32, i < G.lives);
+    if (isHard()) txt('어려움', 316 - (nl - 1) * 22, 32, 14, '#ff9a80', 'right', { weight: 900 });
+  }
   const hpw = 236;
   rr(98, 46, hpw, 18, 9); ctx.fillStyle = 'rgba(10,8,30,0.8)'; ctx.fill();
   rr(98, 46, hpw * Math.max(0, P.hp / st.maxHp), 18, 9); ctx.fillStyle = P.hp / st.maxHp < 0.3 ? C.bad : C.hp; ctx.fill();
@@ -5843,7 +5921,7 @@ function drawClear() {
     para('이 카드는 마지막에 만드는 「정착촌 헌장」의 제' + d.card.article + '조가 돼요. 다섯 운동의 제도 카드를 모아 헌장을 완성해요.', x, 220, 600, 25, '#e6e0ff', 36, { weight: 600 });
     txt('문제 → 사람들의 행동 → 제도', x, 340, 26, C.mustard, 'left', { weight: 900 });
     const sk = D.skills[d.skill];
-    if (sk) { txt('기술 획득: ' + sk.name, x, 396, 26, C.tealL, 'left', { weight: 900 }); para(sk.desc + ' (자동으로 적용돼요)', x, 432, 600, 21, '#c8f5ee', 30, { weight: 600 }); }
+    if (sk) { txt('기술 획득: ' + sk.name, x, 396, 26, C.tealL, 'left', { weight: 900 }); para(skillDesc(sk) + ' (자동으로 적용돼요)', x, 432, 600, 21, '#c8f5ee', 30, { weight: 600 }); }
     txt('운동 배지: ' + d.badge, x, 494, 26, C.amberL, 'left', { weight: 600 });
   }
   if (t > 1.2) button(600, 540, 320, 64, '결과 보기', () => { const r = resultData(); go(() => ResultScene(r)); }, { size: 28 });
@@ -5852,7 +5930,11 @@ function drawGameOver() {
   modalStart(); dim(0.78);
   txt('목숨을 모두 썼어요', W / 2, 220, 48, C.cream, 'center', { weight: 900, stroke: C.ink, sw: 9 });
   txt('스테이지를 처음부터 다시 해요. 모은 기록 칩은 그대로 남아요.', W / 2, 290, 24, '#d8d1fa', 'center', { weight: 600 });
-  button(W / 2 - 180, 360, 360, 66, '처음부터 다시 시작', () => go(() => StageScene(G.def.id, { skipIntro: true })), { size: 28 });
+  if (isHard()) {
+    button(W / 2 - 380, 360, 360, 66, '어려움으로 다시', () => go(() => StageScene(G.def.id, { skipIntro: true })), { size: 26 });
+    button(W / 2 + 20, 360, 360, 66, '보통으로 바꿔서 다시', () => { save.difficulty = 'normal'; writeSave(); go(() => StageScene(G.def.id, { skipIntro: true })); }, { size: 26, fill: C.tealL });
+    txt('보통으로 바꾸면 모은 기록·레벨은 그대로예요. 그 뒤로 깬 스테이지에는 ★가 붙지 않아요', W / 2, 466, 18, '#d8d1fa', 'center', { weight: 600 });
+  } else button(W / 2 - 180, 360, 360, 66, '처음부터 다시 시작', () => go(() => StageScene(G.def.id, { skipIntro: true })), { size: 28 });
 }
 
 /* ---------------- 메인 루프 ---------------- */
@@ -5919,7 +6001,7 @@ if (DEBUG) {
     down() { playerDown(); },
     guide() { const g = routeGoal(); return g ? { x: g.x, y: g.y } : null; },
     ending(step) { overlay = null; setScene(EndingScene({ at: step })); },
-    result(id) { overlay = null; const d = stageById(id); setScene(ResultScene({ id, name: d.name, time: 300, chips: 6, chipTotal: 6, right: 4, wrong: 1, level: 4, rescued: 2 })); },
+    result(id) { overlay = null; const d = stageById(id); setScene(ResultScene({ id, name: d.name, time: 300, chips: 6, chipTotal: 6, right: 4, wrong: 1, level: 4, rescued: 2, hard: isHard() })); },
     select() { overlay = null; setScene(SelectScene()); },
     reset() { save = defaultSave(); writeSave(); }
   };

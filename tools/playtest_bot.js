@@ -1,8 +1,12 @@
 // 자동 플레이 봇: 실제 키 입력으로 한 스테이지를 처음(상황 컷)부터 보스 격파까지 플레이한다(순간 이동·무적 없음).
-// 쓰는 법(저장소 맨 위에서, Playwright 필요): node tools/playtest_bot.js [easy|normal] [정답률 0~1] [스테이지 번호]
+// 쓰는 법(저장소 맨 위에서, Playwright 필요): node tools/playtest_bot.js [easy|normal|hard] [정답률 0~1] [스테이지 번호]
 // 예: node tools/playtest_bot.js normal 0.8 6   → 15초마다 상태를 찍고, 끝나면 END clear/gameover 와 오류(ERR)를 보여 준다.
 // 봇은 학생보다 훨씬 빠르게 움직이니 걸린 시간은 '최소 시간'으로만 본다. 새 스테이지의 장치를 넣으면 이 봇도 같이 고친다.
-const path = require('path'), os = require('os');
+// 이어 하기: BOT_SAVE=파일 을 주면 그 파일의 저장(레벨·강화·기술)으로 시작하고, 깨면 그 파일에 저장한다.
+//   1~6스테이지를 차례로 같은 파일로 돌리면 학생처럼 강화가 쌓인 채로 플레이한다.
+// 목숨을 다 쓰면 그 스테이지를 처음부터 두 번까지 다시 한다(어려움 확인용). 마지막 줄 TRIES = 시도 횟수, 모든 시도의 쓰러짐 합.
+const path = require('path'), os = require('os'), fs = require('fs');
+const SAVE_FILE = process.env.BOT_SAVE || '';
 const { chromium } = require('playwright');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const DIFF = process.argv[2] || 'normal';
@@ -14,13 +18,15 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
   const errs = [];
   page.on('pageerror', e => errs.push(e.message));
   await page.goto('file://' + path.resolve(__dirname, '../colony2126/index.html') + '?debug');
-  await page.evaluate(([d, st]) => { __colony.reset(); const s = __colony.save; s.started = true; s.difficulty = d; __colony.start(st, true); }, [DIFF, STAGE]);
+  const carry = SAVE_FILE && fs.existsSync(SAVE_FILE) ? JSON.parse(fs.readFileSync(SAVE_FILE, 'utf8')) : null;
+  await page.evaluate(([d, st, c]) => { __colony.reset(); const s = __colony.save; if (c) Object.assign(s, c); s.started = true; s.difficulty = d; __colony.start(st, true); }, [DIFF, STAGE, carry]);
+  let tries = 1, downsSum = 0;
   const held = new Set();
   async function setKeys(want) {
     for (const k of [...held]) if (!want.has(k)) { await page.keyboard.up(k); held.delete(k); }
     for (const k of want) if (!held.has(k)) { await page.keyboard.down(k); held.add(k); }
   }
-  let lastLog = 0, wrongBudget = 0, jitter = 0, shots = [], lastZone = null, zoneT = 0;
+  let lastLog = 0, wrongBudget = 0, lastWrong = 0, jitter = 0, shots = [], lastZone = null, zoneT = 0;
   const stuck = { x: 0, y: 0, t: 0, until: 0, dx: 0 }, sockPick = { id: null, wrong: false, n: 0 };
   const t0 = Date.now();
   while (Date.now() - t0 < 900000) {
@@ -51,7 +57,7 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     });
     if (!s) break;
     // 종장은 보스를 반박하면 엔딩 화면으로 넘어간다
-    if (s.scene === 'ending' || s.mode === 'ending') { await setKeys(new Set()); console.log('ZONE boss', (s.time - zoneT).toFixed(0) + 's'); console.log('END clear(ending)', JSON.stringify({ t: s.time.toFixed(0), lv: s.lv, lives: s.lives, stats: s.stats })); break; }
+    if (s.scene === 'ending' || s.mode === 'ending') { await setKeys(new Set()); console.log('ZONE boss', (s.time - zoneT).toFixed(0) + 's'); console.log('END clear(ending)', JSON.stringify({ t: s.time.toFixed(0), lv: s.lv, lives: s.lives, stats: s.stats })); downsSum += s.stats.downs; break; }
     if (s.scene !== 'stage') break;
     // 구간이 바뀔 때마다 그 구간에 걸린 시간(움직인 시간)을 찍는다
     if (s.zone !== lastZone && s.mode === 'play') { if (lastZone !== null) console.log('ZONE', s.ztags[lastZone] || ['A', 'B', 'C'][lastZone] || 'boss', (s.time - zoneT).toFixed(0) + 's'); lastZone = s.zone; zoneT = s.time; }
@@ -80,7 +86,13 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     if (s.mode === 'intro') { await page.keyboard.press('Enter'); await sleep(250); continue; }
     if (s.mode === 'brief') { await page.keyboard.press('Enter'); await sleep(200); continue; }
     if (s.mode === 'bossIntro') { await setKeys(new Set()); await page.keyboard.press('Enter'); await sleep(200); continue; }
-    if (s.mode === 'clear' || s.mode === 'gameover') { await setKeys(new Set()); console.log('ZONE', ['A', 'B', 'C'][lastZone] || 'boss', (s.time - zoneT).toFixed(0) + 's'); console.log('END', s.mode, JSON.stringify({ t: s.time.toFixed(0), lv: s.lv, lives: s.lives, stats: s.stats })); break; }
+    if (s.mode === 'gameover' && tries < 3) {
+      await setKeys(new Set()); downsSum += s.stats.downs;
+      console.log('GAMEOVER try ' + tries, JSON.stringify({ t: s.time.toFixed(0), zone: s.zone, boss: s.b ? s.b.r : null, stats: s.stats }));
+      tries++; lastZone = null; zoneT = 0; wrongBudget = 0; lastWrong = 0;
+      await page.evaluate(st => __colony.start(st), STAGE); await sleep(300); continue;
+    }
+    if (s.mode === 'clear' || s.mode === 'gameover') { await setKeys(new Set()); console.log('ZONE', ['A', 'B', 'C'][lastZone] || 'boss', (s.time - zoneT).toFixed(0) + 's'); console.log('END', s.mode, JSON.stringify({ t: s.time.toFixed(0), lv: s.lv, lives: s.lives, stats: s.stats })); downsSum += s.stats.downs; break; }
     let tx = s.P.x, ty = s.P.y - 300, dashNow = false, quizKey = false;
     if (s.b) {
       const correct = s.b.orbs.find(o => o.c), wrong = s.b.orbs.find(o => !o.c);
@@ -147,11 +159,16 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
     if (s.near.length > 2 && Math.random() < 0.2) await page.keyboard.press('Space');
     if (quizKey) await page.keyboard.press('KeyE');
     else if (Math.random() < 0.05 && !(s.core && s.core.quiz)) await page.keyboard.press('KeyE');
+    // 한 라운드에 한 번만 틀린다(어려움은 틀리면 구슬이 다시 섞여 나와 틀린 구슬이 늘 남아 있다)
+    if (wrongBudget < 0 && s.stats.wrong > lastWrong) wrongBudget = 1;
+    lastWrong = s.stats.wrong;
     if (s.b && s.b.sh && s.b.orbs.length && wrongBudget === 0 && Math.random() > ACC) wrongBudget = -1;
     if (s.b && !s.b.sh) wrongBudget = 0;
     if (s.time - lastLog > 15) { lastLog = s.time; console.log(JSON.stringify({ t: s.time.toFixed(0), zone: s.zone, hp: Math.round(s.P.hp) + '/' + s.max, lives: s.lives, lv: s.lv, walls: s.walls.join(','), boss: s.b ? { r: s.b.r, hp: s.b.hp.toFixed(2), sh: s.b.sh } : null, downs: s.stats.downs, P: [s.P.x | 0, s.P.y | 0], objs: s.objs.slice(0, 3).map(o => o.k + (o.x | 0) + ',' + (o.y | 0)) })); }
     await sleep(90);
   }
+  if (SAVE_FILE) { await sleep(400); const sv = await page.evaluate(() => JSON.stringify(__colony.save)); fs.writeFileSync(SAVE_FILE, sv); }
+  console.log('TRIES', tries, 'downs', downsSum);
   await page.screenshot({ path: os.tmpdir() + '/colony2126_bot_end_s' + STAGE + '_' + DIFF + '.png' });
   console.log('ERR', errs.join('\n') || 'none');
   await browser.close();
