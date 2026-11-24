@@ -4,18 +4,29 @@
 python3 tools/build_single.py
   dist/colony2126.html  한 파일 버전(글꼴·코드·그림·사진이 모두 들어 있다. 내려받아 열어도 된다)
   dist/web/             웹에 올릴 폴더(index.html + js·fonts·img·photos, 한 파일 버전도 같이)
+
+python3 tools/build_single.py --public
+  dist/public/          다른 선생님들께 나누는 공개용. 구글 시트 주소(data.js의 ending.sheetUrl)를 비워서
+                        헌장을 어디로도 보내지 않는다(보내기 버튼·「선생님께 보냈어요」도 안 나옴).
+                        안의 colony2126.html·web/은 위와 같은 구조
 """
 import base64, html, mimetypes, os, re, shutil, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GAME = os.path.join(ROOT, 'colony2126')
-DIST = os.path.join(ROOT, 'dist')
+PUBLIC = '--public' in sys.argv
+DIST = os.path.join(ROOT, 'dist', 'public') if PUBLIC else os.path.join(ROOT, 'dist')
 MIME = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'}
 
 
 def read(rel):
     with open(os.path.join(GAME, rel), encoding='utf-8') as f:
-        return f.read()
+        text = f.read()
+    if PUBLIC and rel == 'js/data.js':
+        text, n = re.subn(r"sheetUrl:\s*'[^']*'", "sheetUrl: ''", text)
+        if n != 1:
+            sys.exit('data.js에서 sheetUrl을 찾지 못했어요')
+    return text
 
 
 def shrink(path, ext):
@@ -79,6 +90,8 @@ def web(single_path):
     os.makedirs(dst)
     shutil.copy(os.path.join(GAME, 'index.html'), dst)
     shutil.copytree(os.path.join(GAME, 'js'), os.path.join(dst, 'js'))
+    with open(os.path.join(dst, 'js', 'data.js'), 'w', encoding='utf-8') as f:
+        f.write(read('js/data.js'))  # 공개용이면 시트 주소를 뺀 것
     shutil.copytree(os.path.join(GAME, 'fonts'), os.path.join(dst, 'fonts'))
     shutil.copytree(os.path.join(GAME, 'photos'), os.path.join(dst, 'photos'))
     shutil.copytree(os.path.join(GAME, 'img'), os.path.join(dst, 'img'), ignore=shutil.ignore_patterns('*.md'))
@@ -91,3 +104,13 @@ if __name__ == '__main__':
     print('한 파일 버전:', os.path.relpath(path, ROOT), '%.1f MB' % (os.path.getsize(path) / 1e6), '그림·사진', n, '장')
     if '--no-web' not in sys.argv:
         print('웹 폴더:', os.path.relpath(web(path), ROOT))
+    if PUBLIC:  # 원래 data.js에 있던 시트 주소가 정말 빠졌는지 확인
+        with open(os.path.join(GAME, 'js', 'data.js'), encoding='utf-8') as f:
+            m = re.search(r"sheetUrl:\s*'([^']+)'", f.read())
+        for d, _, names in os.walk(DIST):
+            for n in names:
+                if m and n.endswith(('.html', '.js')):
+                    with open(os.path.join(d, n), encoding='utf-8') as f:
+                        if m.group(1) in f.read():
+                            sys.exit('시트 주소가 남아 있어요: ' + os.path.join(d, n))
+        print('공개용: 구글 시트 주소 없음 ✓')
