@@ -1364,7 +1364,10 @@ function applyHard(L, id) {
     L.zones[1].initial.push(['turret', 1280, 2520]);    // 검문소 들어가는 길
   }
   if (id === 2 && s.raceSpeed != null && L.race) L.race.v = s.raceSpeed;
-  if (id === 3 && L.fatigue) { if (s.fatigueFill != null) L.fatigue.fill = s.fatigueFill; if (s.fatigueIdle != null) L.fatigue.idle = s.fatigueIdle; }
+  if (id === 3 && L.fatigue) {
+    if (s.fatigueFill != null) L.fatigue.fill = s.fatigueFill; if (s.fatigueIdle != null) L.fatigue.idle = s.fatigueIdle;
+    if (s.fatigueDrain != null) L.fatigue.drain = s.fatigueDrain; if (s.fatigueFloor != null) L.fatigue.floor = s.fatigueFloor;
+  }
   if (id === 4) {
     if (s.armsEvery != null && L.armsRace) L.armsRace.every = s.armsEvery;
     if (s.towerTime != null) { const r = s.towerTime / (L.towerTime || 7); L.gens.forEach(g => { if (g.tower && g.time) g.time *= r; }); L.towerTime = s.towerTime; }
