@@ -99,6 +99,8 @@ const STAGE = parseInt(process.argv[4] || '1', 10);
       if (s.b.sh && s.b.orbs.length) {
         const o = (wrongBudget < 0 && wrong) ? wrong : correct || s.b.orbs[0];
         tx = o.x; ty = o.y;
+        // 가는 길에 다른 구슬이 가까우면 비켜 간다(학생도 피해 간다. 어려움은 틀리면 구슬이 다시 섞여 길에 놓이기도 한다)
+        for (const w of s.b.orbs) { if (w === o) continue; const dx = s.P.x - w.x, dy = s.P.y - w.y, d = Math.hypot(dx, dy) || 1; if (d < 140) { tx = s.P.x + dx / d * 160 + (o.x - s.P.x) * 0.3; ty = s.P.y + dy / d * 160 + (o.y - s.P.y) * 0.3; } }
       } else { tx = s.b.x + Math.sin(s.time * 0.8) * 260; ty = 560; }
       for (const l of s.b.lasers) {
         if (l.k === 'v' && Math.abs(s.P.x - l.x) < 90) tx = s.P.x + (s.P.x < l.x ? -200 : 200);
